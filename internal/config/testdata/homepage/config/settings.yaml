@@ -1,0 +1,7 @@
+title: Home Lab
+theme: light
+background:
+  image: images/bg.jpg
+layout:
+  Media:
+    columns: 1

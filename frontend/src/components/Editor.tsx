@@ -1,0 +1,619 @@
+import { Plus, Trash2 } from "lucide-preact";
+import { useEffect, useState } from "preact/hooks";
+import { api } from "../api";
+import type { Config, Group, Service, Theme, Widget } from "../types";
+import { Icon } from "./Icon";
+import { Dialog, Field, Segmented, Select, TextInput, Toggle } from "./ui";
+
+export const SECRET_MASK = "__foyer_secret__";
+
+// ── Login ────────────────────────────────────────────────────────────────
+
+export function LoginDialog(props: { onClose: () => void; onDone: () => void }) {
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: Event) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.login(password);
+      props.onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign in failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog title="Edit dashboard" onClose={props.onClose}>
+      <form onSubmit={submit} class="stack">
+        <Field label="Password" hint="The FOYER_PASSWORD set on the container.">
+          <TextInput type="password" value={password} onChange={setPassword} autofocus />
+        </Field>
+        {error && <div class="form-error">{error}</div>}
+        <button class="btn btn-primary" disabled={busy || !password}>
+          Sign in
+        </button>
+      </form>
+    </Dialog>
+  );
+}
+
+// ── Service ──────────────────────────────────────────────────────────────
+
+type WidgetField = {
+  key: string;
+  label: string;
+  hint?: string;
+  secret?: boolean;
+  number?: boolean;
+};
+
+const WIDGET_FIELDS: Record<string, WidgetField[]> = {
+  uptimekuma: [
+    { key: "url", label: "Uptime Kuma URL", hint: "As reachable from the Foyer container." },
+    { key: "slug", label: "Status page slug" },
+  ],
+  speedtest: [
+    { key: "url", label: "Speedtest Tracker URL" },
+    {
+      key: "key",
+      label: "API token",
+      secret: true,
+      hint: "Or ${ENV_VAR} to read it from the environment.",
+    },
+    {
+      key: "version",
+      label: "API version",
+      number: true,
+      hint: "2 for Speedtest Tracker 1.x+, 1 for older.",
+    },
+  ],
+  calendar: [
+    { key: "url", label: "iCal URL" },
+    { key: "days", label: "Days ahead", number: true },
+    { key: "max_events", label: "Max events", number: true },
+  ],
+};
+
+const WIDGET_LABELS: Record<string, string> = {
+  uptimekuma: "Uptime Kuma",
+  speedtest: "Speedtest Tracker",
+  calendar: "Calendar (iCal)",
+};
+
+export function ServiceDialog(props: {
+  service: Service;
+  groups: Group[];
+  groupIndex: number;
+  isNew: boolean;
+  widgetTypes: string[];
+  onSave: (service: Service, groupIndex: number) => void;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  const [s, setS] = useState<Service>(props.service);
+  const [group, setGroup] = useState(props.groupIndex);
+  const [icons, setIcons] = useState<string[]>([]);
+  useEffect(() => {
+    api.icons().then(setIcons, () => {});
+  }, []);
+
+  const set = <K extends keyof Service>(key: K, value: Service[K]) =>
+    setS((prev) => ({ ...prev, [key]: value }));
+  const setWidget = (key: string, value: unknown) =>
+    setS((prev) => {
+      const widget: Widget = { ...(prev.widget as Widget), [key]: value };
+      if (value === "" || value === undefined) delete widget[key];
+      return { ...prev, widget };
+    });
+  const widgetType = s.widget?.type ?? "";
+
+  return (
+    <Dialog
+      title={props.isNew ? "Add service" : `Edit ${props.service.name}`}
+      onClose={props.onClose}
+      footer={
+        <>
+          {!props.isNew && (
+            <button class="btn btn-danger" onClick={props.onDelete}>
+              <Trash2 size={14} /> Delete
+            </button>
+          )}
+          <span class="spacer" />
+          <button class="btn" onClick={props.onClose}>
+            Cancel
+          </button>
+          <button
+            class="btn btn-primary"
+            disabled={!s.name.trim()}
+            onClick={() => props.onSave(s, group)}
+          >
+            {props.isNew ? "Add" : "Done"}
+          </button>
+        </>
+      }
+    >
+      <div class="icon-preview">
+        <Icon icon={s.icon} name={s.name || "?"} size={44} />
+        <div class="grow">
+          <Field label="Name">
+            <TextInput value={s.name} onChange={(v) => set("name", v)} autofocus={props.isNew} />
+          </Field>
+        </div>
+      </div>
+      <Field label="Link">
+        <TextInput value={s.url} onChange={(v) => set("url", v)} placeholder="https://" />
+      </Field>
+      <Field label="Description">
+        <TextInput value={s.description} onChange={(v) => set("description", v)} />
+      </Field>
+      <Field
+        label="Icon"
+        hint="A dashboard-icons name (sonarr.png, jellyfin.svg), si-github, a URL, or a file in /config/icons."
+      >
+        <TextInput value={s.icon} onChange={(v) => set("icon", v)} list="foyer-icons" />
+        <datalist id="foyer-icons">
+          {icons.map((i) => (
+            <option key={i} value={i} />
+          ))}
+        </datalist>
+      </Field>
+      <div class="row">
+        <Field label="Status check URL" hint="Checked from the server, e.g. http://sonarr:8989">
+          <TextInput value={s.ping} onChange={(v) => set("ping", v)} placeholder="optional" />
+        </Field>
+        <Field label="Docker container" hint="Shows running / health state.">
+          <TextInput
+            value={s.container}
+            onChange={(v) => set("container", v)}
+            placeholder="optional"
+          />
+        </Field>
+      </div>
+      <Field label="Group">
+        <Select
+          value={String(group)}
+          options={props.groups.map((g, i) => [String(i), g.name] as [string, string])}
+          onChange={(v) => setGroup(Number(v))}
+        />
+      </Field>
+
+      <div class="subhead">Widget</div>
+      <Field label="Type">
+        <Select
+          value={widgetType}
+          options={[
+            ["", "None"],
+            ...props.widgetTypes.map((t) => [t, WIDGET_LABELS[t] ?? t] as [string, string]),
+          ]}
+          onChange={(v) => set("widget", v ? { type: v } : undefined)}
+        />
+      </Field>
+      {s.widget &&
+        (WIDGET_FIELDS[widgetType] ?? []).map((f) => (
+          <Field key={f.key} label={f.label} hint={f.hint}>
+            {f.secret ? (
+              <TextInput
+                type="password"
+                value={s.widget![f.key] === SECRET_MASK ? "" : String(s.widget![f.key] ?? "")}
+                placeholder={s.widget![f.key] === SECRET_MASK ? "Saved — type to replace" : ""}
+                onChange={(v) =>
+                  setWidget(
+                    f.key,
+                    v || (props.service.widget?.[f.key] === SECRET_MASK ? SECRET_MASK : ""),
+                  )
+                }
+              />
+            ) : (
+              <TextInput
+                type={f.number ? "number" : "text"}
+                value={s.widget![f.key] == null ? "" : String(s.widget![f.key])}
+                onChange={(v) => setWidget(f.key, f.number ? (v === "" ? "" : Number(v)) : v)}
+              />
+            )}
+          </Field>
+        ))}
+      {s.widget && (
+        <Field label="Card width">
+          <Segmented
+            value={String(s.widget.span ?? 2)}
+            options={[
+              ["1", "1 column"],
+              ["2", "2 columns"],
+              ["3", "3"],
+              ["4", "4"],
+            ]}
+            onChange={(v) => setWidget("span", Number(v))}
+          />
+        </Field>
+      )}
+    </Dialog>
+  );
+}
+
+// ── Group ────────────────────────────────────────────────────────────────
+
+export function GroupDialog(props: {
+  group: Group;
+  isNew: boolean;
+  onSave: (g: Group) => void;
+  onClose: () => void;
+}) {
+  const [g, setG] = useState(props.group);
+  return (
+    <Dialog
+      title={props.isNew ? "Add group" : "Edit group"}
+      onClose={props.onClose}
+      footer={
+        <>
+          <span class="spacer" />
+          <button class="btn" onClick={props.onClose}>
+            Cancel
+          </button>
+          <button class="btn btn-primary" disabled={!g.name.trim()} onClick={() => props.onSave(g)}>
+            {props.isNew ? "Add" : "Done"}
+          </button>
+        </>
+      }
+    >
+      <Field label="Name">
+        <TextInput value={g.name} onChange={(v) => setG({ ...g, name: v })} autofocus />
+      </Field>
+      <Field
+        label="Width"
+        hint="Auto sizes the group to its services and packs small groups side by side."
+      >
+        <Segmented
+          value={String(g.columns ?? 0)}
+          options={[["0", "Auto"], "1", "2", "3", "4", "5", "6"].map((o) =>
+            Array.isArray(o) ? (o as [string, string]) : ([o, o] as [string, string]),
+          )}
+          onChange={(v) => setG({ ...g, columns: Number(v) || undefined })}
+        />
+      </Field>
+      <Toggle
+        label="Collapsed by default"
+        checked={g.collapsed}
+        onChange={(v) => setG({ ...g, collapsed: v })}
+      />
+    </Dialog>
+  );
+}
+
+// ── Settings ─────────────────────────────────────────────────────────────
+
+const ACCENTS = ["#6b8fff", "#22c55e", "#f59e0b", "#ef4444", "#e879f9", "#2dd4bf", "#f5f5f5"];
+
+export function SettingsDialog(props: {
+  config: Config;
+  onChange: (c: Config) => void;
+  onClose: () => void;
+}) {
+  const { config: c, onChange } = props;
+  const [tab, setTab] = useState<"general" | "look" | "header" | "bookmarks">("look");
+  const theme = (patch: Partial<Theme>) => onChange({ ...c, theme: { ...c.theme, ...patch } });
+  const header = (patch: Partial<Config["header"]>) =>
+    onChange({ ...c, header: { ...c.header, ...patch } });
+  const system = (patch: Partial<Config["header"]["system"]>) =>
+    header({ system: { ...c.header.system, ...patch } });
+  const search = (patch: Partial<Config["header"]["search"]>) =>
+    header({ search: { ...c.header.search, ...patch } });
+
+  return (
+    <Dialog title="Settings" onClose={props.onClose} wide>
+      <Segmented
+        value={tab}
+        options={[
+          ["look", "Appearance"],
+          ["general", "General"],
+          ["header", "Header"],
+          ["bookmarks", "Bookmarks"],
+        ]}
+        onChange={setTab}
+      />
+      <p class="settings-note">Changes preview live. Save from the toolbar to keep them.</p>
+
+      {tab === "look" && (
+        <div class="stack">
+          <Field label="Theme">
+            <Segmented
+              value={c.theme.mode}
+              options={[
+                ["dark", "Dark"],
+                ["light", "Light"],
+                ["auto", "System"],
+              ]}
+              onChange={(v) => theme({ mode: v })}
+            />
+          </Field>
+          <Field label="Accent">
+            <div class="swatches">
+              {ACCENTS.map((a) => (
+                <button
+                  key={a}
+                  class={`swatch ${c.theme.accent.toLowerCase() === a ? "on" : ""}`}
+                  style={{ background: a }}
+                  onClick={() => theme({ accent: a })}
+                  aria-label={a}
+                />
+              ))}
+              <input
+                type="color"
+                value={c.theme.accent}
+                onInput={(e) => theme({ accent: e.currentTarget.value })}
+                aria-label="Custom accent"
+              />
+            </div>
+          </Field>
+          <Field label="Typeface">
+            <Segmented
+              value={c.theme.font}
+              options={[
+                ["mono", "Mono"],
+                ["sans", "Sans"],
+                ["serif", "Editorial"],
+              ]}
+              onChange={(v) => theme({ font: v })}
+            />
+          </Field>
+          <Field label="Cards">
+            <Segmented
+              value={c.theme.cards}
+              options={[
+                ["outline", "Outline"],
+                ["filled", "Filled"],
+                ["glass", "Glass"],
+              ]}
+              onChange={(v) => theme({ cards: v })}
+            />
+          </Field>
+          <div class="row">
+            <Field label="Density">
+              <Segmented
+                value={c.theme.density}
+                options={[
+                  ["comfortable", "Comfortable"],
+                  ["compact", "Compact"],
+                ]}
+                onChange={(v) => theme({ density: v })}
+              />
+            </Field>
+            <Field label="Max columns">
+              <Segmented
+                value={String(c.theme.columns)}
+                options={["2", "3", "4", "5", "6"]}
+                onChange={(v) => theme({ columns: Number(v) })}
+              />
+            </Field>
+          </div>
+          <Field
+            label="Background image"
+            hint="A URL, or /images/name.jpg for a file in /config/images."
+          >
+            <TextInput value={c.theme.background} onChange={(v) => theme({ background: v })} />
+          </Field>
+          {c.theme.background && (
+            <div class="row">
+              <Field label={`Dim ${Math.round(c.theme.background_dim * 100)}%`}>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={c.theme.background_dim}
+                  onInput={(e) => theme({ background_dim: Number(e.currentTarget.value) })}
+                />
+              </Field>
+              <Field label={`Blur ${c.theme.background_blur}px`}>
+                <input
+                  type="range"
+                  min={0}
+                  max={40}
+                  value={c.theme.background_blur}
+                  onInput={(e) => theme({ background_blur: Number(e.currentTarget.value) })}
+                />
+              </Field>
+            </div>
+          )}
+          <Field
+            label="Custom CSS"
+            hint="Appended to the page. The theme is built on CSS variables (--accent, --bg, --card, ...)."
+          >
+            <textarea
+              class="input code"
+              rows={5}
+              value={c.theme.custom_css}
+              spellcheck={false}
+              onInput={(e) => theme({ custom_css: e.currentTarget.value })}
+            />
+          </Field>
+        </div>
+      )}
+
+      {tab === "general" && (
+        <div class="stack">
+          <Field label="Page title">
+            <TextInput value={c.title} onChange={(v) => onChange({ ...c, title: v })} />
+          </Field>
+          <Toggle
+            label="Open links in a new tab"
+            checked={c.open_in_new_tab}
+            onChange={(v) => onChange({ ...c, open_in_new_tab: v })}
+          />
+          <Field label="Status check interval (seconds)">
+            <TextInput
+              type="number"
+              value={String(c.ping_interval)}
+              onChange={(v) => onChange({ ...c, ping_interval: Number(v) || 30 })}
+            />
+          </Field>
+        </div>
+      )}
+
+      {tab === "header" && (
+        <div class="stack">
+          <div class="row">
+            <Toggle label="Clock" checked={c.header.clock} onChange={(v) => header({ clock: v })} />
+            <Toggle
+              label="24-hour"
+              checked={c.header.clock_24h}
+              onChange={(v) => header({ clock_24h: v })}
+            />
+            <Toggle
+              label="Greeting"
+              checked={c.header.greeting}
+              onChange={(v) => header({ greeting: v })}
+            />
+          </div>
+          <Field label="Your name" hint="Used in the greeting.">
+            <TextInput value={c.header.name} onChange={(v) => header({ name: v })} />
+          </Field>
+          <div class="subhead">Search</div>
+          <Toggle
+            label="Web search from the search box"
+            checked={c.header.search.enabled}
+            onChange={(v) => search({ enabled: v })}
+          />
+          <Field label="Provider">
+            <Segmented
+              value={c.header.search.provider}
+              options={[
+                ["google", "Google"],
+                ["duckduckgo", "DuckDuckGo"],
+                ["bing", "Bing"],
+                ["kagi", "Kagi"],
+                ["custom", "Custom"],
+              ]}
+              onChange={(v) => search({ provider: v })}
+            />
+          </Field>
+          {c.header.search.provider === "custom" && (
+            <Field
+              label="Search URL"
+              hint="The query is appended, e.g. https://search.example.com/?q="
+            >
+              <TextInput value={c.header.search.url} onChange={(v) => search({ url: v })} />
+            </Field>
+          )}
+          <div class="subhead">Server stats</div>
+          <Toggle
+            label="Show server stats"
+            checked={c.header.system.enabled}
+            onChange={(v) => system({ enabled: v })}
+          />
+          <div class="row">
+            <Toggle
+              label="CPU"
+              checked={c.header.system.cpu}
+              onChange={(v) => system({ cpu: v })}
+            />
+            <Toggle
+              label="Memory"
+              checked={c.header.system.memory}
+              onChange={(v) => system({ memory: v })}
+            />
+            <Toggle
+              label="Temperature"
+              checked={c.header.system.temperature}
+              onChange={(v) => system({ temperature: v })}
+            />
+            <Toggle
+              label="Uptime"
+              checked={c.header.system.uptime}
+              onChange={(v) => system({ uptime: v })}
+            />
+          </div>
+          <Field
+            label="Disks"
+            hint="Comma-separated paths inside the container. Mount host drives read-only to watch them."
+          >
+            <TextInput
+              value={c.header.system.disks.join(", ")}
+              onChange={(v) =>
+                system({
+                  disks: v
+                    .split(",")
+                    .map((d) => d.trim())
+                    .filter(Boolean),
+                })
+              }
+            />
+          </Field>
+        </div>
+      )}
+
+      {tab === "bookmarks" && <BookmarksEditor config={c} onChange={onChange} />}
+    </Dialog>
+  );
+}
+
+function BookmarksEditor({ config, onChange }: { config: Config; onChange: (c: Config) => void }) {
+  const groups = config.bookmarks;
+  const update = (next: Config["bookmarks"]) => onChange({ ...config, bookmarks: next });
+  const patchGroup = (gi: number, patch: Partial<Config["bookmarks"][number]>) =>
+    update(groups.map((g, i) => (i === gi ? { ...g, ...patch } : g)));
+
+  return (
+    <div class="stack">
+      {groups.map((g, gi) => (
+        <div class="bm-group" key={gi}>
+          <div class="bm-row">
+            <TextInput
+              value={g.name}
+              onChange={(v) => patchGroup(gi, { name: v })}
+              placeholder="Group"
+            />
+            <button
+              class="icon-btn"
+              title="Remove group"
+              onClick={() => update(groups.filter((_, i) => i !== gi))}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+          {g.links.map((l, li) => {
+            const patchLink = (patch: Partial<typeof l>) =>
+              patchGroup(gi, { links: g.links.map((x, i) => (i === li ? { ...x, ...patch } : x)) });
+            return (
+              <div class="bm-row bm-link" key={li}>
+                <TextInput
+                  value={l.name}
+                  onChange={(v) => patchLink({ name: v })}
+                  placeholder="Name"
+                />
+                <TextInput
+                  value={l.url}
+                  onChange={(v) => patchLink({ url: v })}
+                  placeholder="https://"
+                />
+                <TextInput
+                  value={l.abbr}
+                  onChange={(v) => patchLink({ abbr: v })}
+                  placeholder="Abbr"
+                />
+                <button
+                  class="icon-btn"
+                  title="Remove link"
+                  onClick={() => patchGroup(gi, { links: g.links.filter((_, i) => i !== li) })}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            );
+          })}
+          <button
+            class="btn btn-ghost"
+            onClick={() => patchGroup(gi, { links: [...g.links, { name: "", url: "" }] })}
+          >
+            <Plus size={14} /> Link
+          </button>
+        </div>
+      ))}
+      <button class="btn" onClick={() => update([...groups, { name: "Links", links: [] }])}>
+        <Plus size={14} /> Bookmark group
+      </button>
+    </div>
+  );
+}
