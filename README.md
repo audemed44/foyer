@@ -81,8 +81,8 @@ ping_interval: 30            # seconds between status checks
 
 theme:
   mode: dark                 # dark | light | auto
-  accent: "#6b8fff"
-  font: mono                 # mono | sans | serif
+  accent: "#2563ff"
+  font: sans                 # sans (Inter) | mono | serif
   cards: outline             # outline | filled | glass
   density: comfortable       # comfortable | compact
   columns: 4                 # max columns on wide screens

@@ -153,7 +153,7 @@ func TestParseKeepsDefaultsForMissingKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Title != "Mine" || cfg.Header.Clock || !cfg.Header.Greeting || cfg.Theme.Accent != "#6b8fff" {
+	if cfg.Title != "Mine" || cfg.Header.Clock || !cfg.Header.Greeting || cfg.Theme.Accent != "#2563ff" {
 		t.Fatalf("defaults not kept: %+v", cfg.Header)
 	}
 }

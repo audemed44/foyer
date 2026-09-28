@@ -1,7 +1,17 @@
-import { ArrowDown, ArrowUp, ChevronDown, GripVertical, Pencil, Plus, Trash2 } from "lucide-preact";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpRight,
+  ChevronDown,
+  GripVertical,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-preact";
 import { useState } from "preact/hooks";
 import { useColumns } from "../hooks";
-import { groupSpan, packGroups, serviceSpan } from "../lib";
+import { groupSpan, iconUrl, packGroups, serviceSpan } from "../lib";
+import { useTint } from "../tint";
 import type { Config, Group, Service, ServiceStatus, StatusMap } from "../types";
 import { WidgetBody } from "../widgets";
 import { Icon } from "./Icon";
@@ -89,6 +99,8 @@ function GroupSection(props: {
   };
 
   const isCollapsed = collapsed && !edit;
+  // One-column groups keep the status short so the heading has room.
+  const narrow = span === 1 && columns > 1;
 
   return (
     <section
@@ -110,12 +122,12 @@ function GroupSection(props: {
       <div class="group-head">
         <button class="group-title" onClick={toggle} aria-expanded={!isCollapsed} disabled={!!edit}>
           <span class="group-index">{String(props.number).padStart(2, "0")}</span>
-          <span class="group-name">{group.name}</span>
+          <h2 class="group-name">{group.name}</h2>
           {!edit && (
-            <ChevronDown size={13} class={`group-chevron ${isCollapsed ? "closed" : ""}`} />
+            <ChevronDown size={16} class={`group-chevron ${isCollapsed ? "closed" : ""}`} />
           )}
         </button>
-        <span class="group-rule" />
+        <span class="spacer" />
         {edit ? (
           <span class="group-tools">
             <button
@@ -123,34 +135,37 @@ function GroupSection(props: {
               onClick={() => edit.moveGroup(index, -1)}
               disabled={index === 0}
             >
-              <ArrowUp size={13} />
+              <ArrowUp size={14} />
             </button>
             <button
               title="Move down"
               onClick={() => edit.moveGroup(index, 1)}
               disabled={index === props.count - 1}
             >
-              <ArrowDown size={13} />
+              <ArrowDown size={14} />
             </button>
             <button title="Rename" onClick={() => edit.editGroup(index)}>
-              <Pencil size={13} />
+              <Pencil size={14} />
             </button>
             <button title="Delete group" onClick={() => edit.deleteGroup(index)}>
-              <Trash2 size={13} />
+              <Trash2 size={14} />
             </button>
           </span>
         ) : (
-          <span class={`group-meta ${down ? "bad" : ""}`}>
-            {pinged.length > 0
-              ? down
+          <span class={`eyebrow group-meta ${down ? "bad" : ""}`}>
+            {pinged.length > 0 && <span class={`dot ${down ? "bad" : "good"}`} />}
+            {pinged.length === 0
+              ? `${group.services.length} ${group.services.length === 1 ? "app" : "apps"}`
+              : down
                 ? `${down} down`
-                : `${pinged.length}/${pinged.length} up`
-              : `${group.services.length}`}
+                : narrow
+                  ? `${pinged.length}/${pinged.length}`
+                  : `${pinged.length} of ${pinged.length} up`}
           </span>
         )}
       </div>
       {!isCollapsed && (
-        <div class="tiles" style={{ "--tile-cols": tileCols }}>
+        <div class="tiles stagger" style={{ "--tile-cols": tileCols }}>
           {group.services.map((service, si) => (
             <ServiceCard
               key={service.id}
@@ -168,7 +183,7 @@ function GroupSection(props: {
               style={{ "--span": 1 }}
               onClick={() => edit.addService(index)}
             >
-              <Plus size={16} />
+              <Plus size={18} />
               <span>Add service</span>
             </button>
           )}
@@ -220,18 +235,27 @@ function ServiceCard(props: {
     .filter(Boolean)
     .join("\n");
 
+  const tint = useTint(iconUrl(service.icon));
+  const latency = info?.tone === "good" && props.status?.ping ? info.label : null;
+
   const head = (
     <>
-      <Icon icon={service.icon} name={service.name} size={service.widget ? 26 : 32} />
-      <div class="tile-text">
-        <div class="tile-name">{service.name}</div>
+      <span class="tile-icon">
+        <Icon icon={service.icon} name={service.name} size={service.widget ? 24 : 28} />
+      </span>
+      <span class="tile-text">
+        <span class="tile-name">{service.name}</span>
         {problem ? (
-          <div class={`tile-desc tile-problem ${info!.tone}`}>{info!.label}</div>
+          <span class={`tile-desc tile-problem ${info!.tone}`}>{info!.label}</span>
         ) : (
-          service.description && <div class="tile-desc">{service.description}</div>
+          service.description && <span class="tile-desc">{service.description}</span>
         )}
-      </div>
-      {info && <span class={`dot tile-dot ${info.tone}`} />}
+      </span>
+      <span class="tile-side">
+        {latency && <span class="tile-latency">{latency}</span>}
+        {info && <span class={`dot ${info.tone}`} />}
+      </span>
+      {!edit && service.url && <ArrowUpRight size={15} class="tile-arrow" />}
     </>
   );
 
@@ -256,8 +280,17 @@ function ServiceCard(props: {
       }
     : {};
 
-  const cls = `tile ${service.widget ? "tile-widget" : ""} ${edit ? "editing" : ""} ${over ? "drop-before" : ""}`;
-  const style = { "--span": span };
+  const cls = [
+    "tile",
+    service.widget && "tile-widget",
+    edit && "editing",
+    over && "drop-before",
+    problem && `is-${info!.tone}`,
+    tint && "tinted",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const style = { "--span": span, ...(tint ? { "--tint": tint } : {}) };
 
   if (edit) {
     return (

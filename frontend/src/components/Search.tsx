@@ -59,13 +59,13 @@ export function Search({ config }: { config: Config }) {
   return (
     <div class="search">
       <label class="search-box">
-        <SearchIcon size={15} strokeWidth={1.75} />
+        <SearchIcon size={20} strokeWidth={2} />
         <input
           ref={input}
           value={query}
           onInput={(e) => setQuery(e.currentTarget.value)}
           onKeyDown={onKeyDown}
-          placeholder={showWeb ? "Search services or the web" : "Find a service"}
+          placeholder={showWeb ? "Search your apps or the web" : "Find an app"}
           aria-label="Search"
           autocomplete="off"
           spellcheck={false}

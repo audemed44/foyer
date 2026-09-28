@@ -1,4 +1,5 @@
 import { ArrowDown, ArrowUp, Timer } from "lucide-preact";
+import type { ComponentChildren } from "preact";
 import { api } from "../api";
 import { usePoll, useNow } from "../hooks";
 import { timeAgo } from "../lib";
@@ -9,7 +10,7 @@ export function WidgetBody({ service }: { service: Service }) {
   const type = service.widget?.type;
 
   if (error && !data) return <div class="widget widget-error">{error}</div>;
-  if (!data) return <div class="widget widget-loading" />;
+  if (!data) return <div class="widget widget-loading skeleton" />;
   switch (type) {
     case "uptimekuma":
       return <UptimeKuma data={data as KumaData} />;
@@ -38,17 +39,23 @@ type KumaData = {
 };
 
 function UptimeKuma({ data }: { data: KumaData }) {
+  const uptime = data.uptime;
   return (
     <div class="widget kuma">
-      <div class="stat-row">
-        <Stat value={`${data.up}/${data.total}`} label="up" tone={data.down ? "bad" : "good"} />
-        {data.uptime !== undefined && (
-          <Stat
-            value={`${data.uptime.toFixed(data.uptime >= 99.95 ? 0 : 2)}%`}
-            label="24h uptime"
+      <div class="figures">
+        {uptime !== undefined && (
+          <Figure
+            value={uptime >= 99.95 ? "100" : uptime.toFixed(2)}
+            unit="%"
+            label="Uptime · 24h"
           />
         )}
-        {data.down > 0 && <Stat value={String(data.down)} label="down" tone="bad" />}
+        <Figure
+          value={String(data.up)}
+          unit={`/${data.total}`}
+          label="Monitors up"
+          tone={data.down ? "bad" : undefined}
+        />
       </div>
       {data.incident && <div class="kuma-incident">{data.incident}</div>}
       <ul class="kuma-list">
@@ -59,11 +66,11 @@ function UptimeKuma({ data }: { data: KumaData }) {
             />
             <span class="kuma-name">{m.name}</span>
             <span class="beats" aria-hidden="true">
-              {m.history.slice(-20).map((b, i) => (
+              {m.history.slice(-24).map((b, i) => (
                 <i key={i} class={b} />
               ))}
             </span>
-            <span class="kuma-ping">{m.ping != null ? `${m.ping}ms` : ""}</span>
+            <span class="kuma-ping">{m.ping != null ? `${m.ping} ms` : ""}</span>
           </li>
         ))}
       </ul>
@@ -79,17 +86,24 @@ function Speedtest({ data }: { data: SpeedData }) {
   const fmt = (v: number) => (v >= 100 ? v.toFixed(0) : v.toFixed(1));
   return (
     <div class="widget speed">
-      <div class="stat-row">
-        <Stat
+      <div class="figures">
+        <Figure
           value={fmt(data.download_mbps)}
           unit="Mbps"
-          label="down"
-          icon={<ArrowDown size={12} />}
+          label="Download"
+          icon={<ArrowDown size={11} />}
         />
-        <Stat value={fmt(data.upload_mbps)} unit="Mbps" label="up" icon={<ArrowUp size={12} />} />
-        <Stat value={data.ping_ms.toFixed(0)} unit="ms" label="ping" icon={<Timer size={12} />} />
+        <Figure
+          value={fmt(data.upload_mbps)}
+          unit="Mbps"
+          label="Upload"
+          icon={<ArrowUp size={11} />}
+        />
+        <Figure value={data.ping_ms.toFixed(0)} unit="ms" label="Ping" icon={<Timer size={11} />} />
       </div>
-      {at && !isNaN(at.getTime()) && <div class="widget-foot">Tested {timeAgo(at, now)}</div>}
+      {at && !isNaN(at.getTime()) && (
+        <p class="eyebrow widget-foot">Last test {timeAgo(at, now)}</p>
+      )}
     </div>
   );
 }
@@ -100,65 +114,73 @@ type CalendarData = { events: CalendarEvent[] };
 function Calendar({ data }: { data: CalendarData }) {
   const now = useNow();
   if (data.events.length === 0) return <div class="widget widget-empty">Nothing coming up</div>;
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const dayLabel = (d: Date) => {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+  const days = new Map<string, { date: Date; events: CalendarEvent[] }>();
+  for (const e of data.events) {
+    const d = e.all_day ? new Date(`${e.start}T00:00`) : new Date(e.start);
+    const key = d.toDateString();
+    if (!days.has(key)) days.set(key, { date: d, events: [] });
+    days.get(key)!.events.push(e);
+  }
+  const relative = (d: Date) => {
     const diff = Math.round(
-      (new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - today.getTime()) / 864e5,
+      (new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - today) / 864e5,
     );
     if (diff === 0) return "Today";
     if (diff === 1) return "Tomorrow";
-    return d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+    return d.toLocaleDateString([], { weekday: "long" });
   };
-  const days = new Map<string, { label: string; events: CalendarEvent[] }>();
-  for (const e of data.events) {
-    const d = e.all_day ? new Date(`${e.start}T00:00`) : new Date(e.start);
-    const label = dayLabel(d);
-    if (!days.has(label)) days.set(label, { label, events: [] });
-    days.get(label)!.events.push(e);
-  }
+
   return (
     <div class="widget agenda">
-      {[...days.values()].map((day) => (
-        <div class="agenda-day" key={day.label}>
-          <div class="agenda-date">{day.label}</div>
-          <ul>
-            {day.events.map((e, i) => (
-              <li key={i}>
-                <span class="agenda-time">
-                  {e.all_day
-                    ? "all day"
-                    : new Date(e.start).toLocaleTimeString([], {
+      {[...days.values()].map(({ date, events }) => (
+        <div class="agenda-day" key={date.toDateString()}>
+          <div class="agenda-date">
+            <span class="agenda-num">{date.getDate()}</span>
+            <span class="eyebrow">{date.toLocaleDateString([], { month: "short" })}</span>
+          </div>
+          <div class="agenda-body">
+            <p class="eyebrow eyebrow-accent">{relative(date)}</p>
+            <ul>
+              {events.map((e, i) => (
+                <li key={i}>
+                  <span class="agenda-title">{e.title}</span>
+                  {!e.all_day && (
+                    <span class="agenda-time">
+                      {new Date(e.start).toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
-                </span>
-                <span class="agenda-title">{e.title}</span>
-              </li>
-            ))}
-          </ul>
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       ))}
     </div>
   );
 }
 
-function Stat(props: {
+function Figure(props: {
   value: string;
   label: string;
   unit?: string;
   tone?: string;
-  icon?: preact.ComponentChildren;
+  icon?: ComponentChildren;
 }) {
   return (
-    <div class={`stat ${props.tone ?? ""}`}>
-      <div class="stat-value">
+    <div class={`figure ${props.tone ?? ""}`}>
+      <p class="figure-value">
         {props.value}
-        {props.unit && <span class="stat-unit">{props.unit}</span>}
-      </div>
-      <div class="stat-label">
+        {props.unit && <span class="figure-unit">{props.unit}</span>}
+      </p>
+      <p class="eyebrow figure-label">
         {props.icon}
         {props.label}
-      </div>
+      </p>
     </div>
   );
 }

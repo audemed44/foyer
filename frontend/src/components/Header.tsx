@@ -1,118 +1,181 @@
+import { Activity, Clock3, Cpu, HardDrive, MemoryStick, Thermometer } from "lucide-preact";
+import type { ComponentChildren } from "preact";
 import { api } from "../api";
 import { usePoll, useNow } from "../hooks";
 import { formatBytes, formatDuration, greeting } from "../lib";
-import type { Config, SystemStats } from "../types";
+import type { Config, StatusMap, SystemStats } from "../types";
 
-export function Header({ config }: { config: Config }) {
+export function Header({ config, status }: { config: Config; status: StatusMap | null }) {
   const { header } = config;
   const now = useNow();
-  const time = now.toLocaleTimeString([], {
+  const parts = new Intl.DateTimeFormat([], {
     hour: "2-digit",
     minute: "2-digit",
     hour12: !header.clock_24h,
-  });
+  }).formatToParts(now);
+  const hour = parts.find((p) => p.type === "hour")?.value ?? "";
+  const minute = parts.find((p) => p.type === "minute")?.value ?? "";
+  const period = parts.find((p) => p.type === "dayPeriod")?.value;
   const date = now.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
-  const hello = header.greeting
-    ? `${greeting(now.getHours())}${header.name ? `, ${header.name}` : ""}`
-    : null;
 
   return (
-    <header class="masthead">
-      <div class="masthead-time">
-        {header.clock && <div class="clock">{time}</div>}
-        <div class="dateline">
-          <span>{date}</span>
-          {hello && <span class="dateline-greeting">{hello}</span>}
-        </div>
+    <header class="hero">
+      <div class="hero-lead">
+        <p class="eyebrow eyebrow-accent">{date}</p>
+        {header.clock && (
+          <h1 class="clock" aria-label={`${hour}:${minute}${period ? ` ${period}` : ""}`}>
+            {hour}
+            <span class="clock-colon">:</span>
+            {minute}
+            {period && <span class="clock-period">{period}</span>}
+          </h1>
+        )}
+        {header.greeting && (
+          <p class="greeting">
+            {greeting(now.getHours())}
+            {header.name ? `, ${header.name}` : ""}.
+          </p>
+        )}
       </div>
-      {header.system.enabled && <SystemMeters config={config} />}
+      {header.system.enabled && <Stats config={config} status={status} />}
     </header>
   );
 }
 
-function SystemMeters({ config }: { config: Config }) {
+function Stats({ config, status }: { config: Config; status: StatusMap | null }) {
   const opts = config.header.system;
   const { data } = usePoll<SystemStats>(api.system, 5000);
-  if (!data) return <div class="meters meters-loading" />;
 
-  return (
-    <div class="meters">
-      {opts.cpu && (
-        <Meter
+  const pings = Object.values(status ?? {}).flatMap((s) => (s.ping ? [s.ping] : []));
+  const up = pings.filter((p) => p.state === "up").length;
+
+  const tiles: ComponentChildren[] = [];
+  if (pings.length > 0) {
+    tiles.push(
+      <Stat
+        key="services"
+        icon={<Activity size={12} />}
+        label="Online"
+        value={String(up)}
+        unit={`/${pings.length}`}
+        sub={up === pings.length ? "all services up" : `${pings.length - up} down`}
+        tone={up === pings.length ? "" : "bad"}
+      />,
+    );
+  }
+  if (data) {
+    if (opts.cpu)
+      tiles.push(
+        <Stat
+          key="cpu"
+          icon={<Cpu size={12} />}
           label="CPU"
-          value={`${Math.round(data.cpu.percent)}%`}
-          percent={data.cpu.percent}
+          value={String(Math.round(data.cpu.percent))}
+          unit="%"
+          sub={data.cpu.load ? `load ${data.cpu.load[0].toFixed(2)}` : `${data.cpu.cores} cores`}
           history={data.cpu.history}
-          detail={data.cpu.load ? `load ${data.cpu.load[0].toFixed(2)}` : `${data.cpu.cores} cores`}
-        />
-      )}
-      {opts.memory && (
-        <Meter
-          label="MEM"
-          value={`${Math.round(data.memory.percent)}%`}
-          percent={data.memory.percent}
+          percent={data.cpu.percent}
+        />,
+      );
+    if (opts.memory)
+      tiles.push(
+        <Stat
+          key="mem"
+          icon={<MemoryStick size={12} />}
+          label="Memory"
+          value={String(Math.round(data.memory.percent))}
+          unit="%"
+          sub={`${formatBytes(data.memory.used)} of ${formatBytes(data.memory.total)}`}
           history={data.memory.history}
-          detail={`${formatBytes(data.memory.used)} / ${formatBytes(data.memory.total)}`}
-        />
-      )}
-      {data.disks.map((d) => (
-        <Meter
+          percent={data.memory.percent}
+        />,
+      );
+    for (const d of data.disks)
+      tiles.push(
+        <Stat
           key={d.path}
-          label={d.path === "/" ? "DISK" : d.path.split("/").filter(Boolean).pop()!.toUpperCase()}
-          value={`${Math.round(d.percent)}%`}
+          icon={<HardDrive size={12} />}
+          label={d.path === "/" ? "Disk" : d.path.split("/").filter(Boolean).pop()!}
+          value={String(Math.round(d.percent))}
+          unit="%"
+          sub={`${formatBytes(d.total - d.used)} free`}
           percent={d.percent}
-          detail={`${formatBytes(d.total - d.used)} free`}
-        />
-      ))}
-      {opts.temperature && data.temperature !== null && (
-        <Meter
-          label="TEMP"
-          value={`${Math.round(data.temperature)}°`}
-          percent={Math.min(100, data.temperature)}
-          detail={data.temperature >= 80 ? "running hot" : "cpu package"}
+        />,
+      );
+    if (opts.temperature && data.temperature !== null)
+      tiles.push(
+        <Stat
+          key="temp"
+          icon={<Thermometer size={12} />}
+          label="Temp"
+          value={String(Math.round(data.temperature))}
+          unit="°C"
+          sub={data.temperature >= 80 ? "running hot" : "cpu package"}
+          percent={data.temperature}
           warnAt={75}
-        />
-      )}
-      {opts.uptime && (
-        <div class="meter">
-          <div class="meter-label">UP</div>
-          <div class="meter-value">{formatDuration(data.uptime)}</div>
-          <div class="meter-detail">since boot</div>
-        </div>
-      )}
-    </div>
-  );
+        />,
+      );
+    if (opts.uptime) {
+      const [big, small] = formatDuration(data.uptime).split(" ");
+      tiles.push(
+        <Stat
+          key="up"
+          icon={<Clock3 size={12} />}
+          label="Uptime"
+          value={big}
+          unit={small ? ` ${small}` : ""}
+          sub="since boot"
+        />,
+      );
+    }
+  }
+
+  return <div class={`stats ${data ? "stagger" : "stats-loading"}`}>{tiles}</div>;
 }
 
-function Meter(props: {
+function Stat(props: {
+  icon: ComponentChildren;
   label: string;
   value: string;
-  percent: number;
-  detail: string;
+  unit?: string;
+  sub: string;
   history?: number[];
+  percent?: number;
   warnAt?: number;
+  tone?: string;
 }) {
   const warnAt = props.warnAt ?? 85;
-  const tone = props.percent >= warnAt + 10 ? "bad" : props.percent >= warnAt ? "warn" : "";
+  const pct = props.percent;
+  const tone =
+    props.tone ??
+    (pct === undefined ? "" : pct >= warnAt + 10 ? "bad" : pct >= warnAt ? "warn" : "");
   return (
-    <div class={`meter ${tone}`}>
-      <div class="meter-label">{props.label}</div>
-      <div class="meter-value">{props.value}</div>
+    <div class={`stat ${tone}`}>
+      <p class="eyebrow stat-label">
+        {props.icon}
+        {props.label}
+      </p>
+      <p class="stat-value">
+        {props.value}
+        {props.unit && <span class="stat-unit">{props.unit}</span>}
+      </p>
       {props.history && props.history.length > 1 ? (
         <Sparkline values={props.history} />
-      ) : (
-        <div class="meter-bar">
-          <span style={{ width: `${Math.max(2, props.percent)}%` }} />
+      ) : pct !== undefined ? (
+        <div class="bar">
+          <span style={{ width: `${Math.max(1, Math.min(100, pct))}%` }} />
         </div>
+      ) : (
+        <div class="bar bar-empty" />
       )}
-      <div class="meter-detail">{props.detail}</div>
+      <p class="stat-sub">{props.sub}</p>
     </div>
   );
 }
 
 function Sparkline({ values }: { values: number[] }) {
-  const w = 100;
-  const h = 18;
+  const w = 120;
+  const h = 22;
   const step = w / Math.max(1, values.length - 1);
   const y = (v: number) => h - (Math.min(100, Math.max(0, v)) / 100) * (h - 2) - 1;
   const points = values.map((v, i) => `${(i * step).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
