@@ -92,7 +92,7 @@ func TestEditingNeedsLogin(t *testing.T) {
 		t.Fatalf("saved: %q %v", cfg.Title, cfg.Groups[0].Services[0].Widget)
 	}
 
-	bad := strings.Replace(edited, `"accent":"#6b8fff"`, `"accent":"red"`, 1)
+	bad := strings.Replace(edited, `"accent":"#2563ff"`, `"accent":"red"`, 1)
 	if rec := do(h, "PUT", "/api/config", bad, cookie); rec.Code != 422 {
 		t.Fatalf("invalid config: %d", rec.Code)
 	}

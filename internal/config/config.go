@@ -118,7 +118,7 @@ func Default() Config {
 		OpenInNewTab: true,
 		PingInterval: 30,
 		Theme: Theme{
-			Mode: "dark", Accent: "#6b8fff", Font: "mono", Cards: "outline",
+			Mode: "dark", Accent: "#2563ff", Font: "sans", Cards: "outline",
 			Density: "comfortable", Columns: 4, BackgroundDim: 0.75,
 		},
 		Header: Header{

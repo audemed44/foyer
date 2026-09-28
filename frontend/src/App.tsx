@@ -192,7 +192,7 @@ export function App() {
             Config error — showing the last good version. <code>{meta.error}</code>
           </div>
         )}
-        <Header config={config} />
+        <Header config={config} status={status ?? null} />
         <Search config={config} />
         <Groups config={config} status={status ?? {}} edit={edit} />
         {config.groups.length === 0 && (

@@ -284,7 +284,7 @@ export function GroupDialog(props: {
 
 // ── Settings ─────────────────────────────────────────────────────────────
 
-const ACCENTS = ["#6b8fff", "#22c55e", "#f59e0b", "#ef4444", "#e879f9", "#2dd4bf", "#f5f5f5"];
+const ACCENTS = ["#2563ff", "#ff3b1f", "#22c55e", "#f59e0b", "#a855f7", "#14b8a6", "#ffffff"];
 
 export function SettingsDialog(props: {
   config: Config;
@@ -351,9 +351,9 @@ export function SettingsDialog(props: {
             <Segmented
               value={c.theme.font}
               options={[
-                ["mono", "Mono"],
-                ["sans", "Sans"],
+                ["sans", "Swiss"],
                 ["serif", "Editorial"],
+                ["mono", "Mono"],
               ]}
               onChange={(v) => theme({ font: v })}
             />
