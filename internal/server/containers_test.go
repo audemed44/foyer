@@ -99,7 +99,7 @@ func TestDiscover(t *testing.T) {
 	var q string
 	h := containerServer(t, fakeDocker(t, &q))
 	rec := do(h, "GET", "/api/discover", "")
-	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"container":"web"`) {
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"containers":[{"container":"web"`) {
 		t.Fatalf("%d %s", rec.Code, rec.Body)
 	}
 }
@@ -109,7 +109,56 @@ func TestContainersWithoutDocker(t *testing.T) {
 	if rec := do(h, "GET", "/api/containers", ""); rec.Code != 503 {
 		t.Fatalf("got %d", rec.Code)
 	}
-	if rec := do(h, "GET", "/api/discover", ""); rec.Code != 200 || strings.TrimSpace(rec.Body.String()) != "[]" {
+	if rec := do(h, "GET", "/api/discover", ""); rec.Code != 200 || strings.TrimSpace(rec.Body.String()) != `{"containers":[],"widgets":[]}` {
 		t.Fatalf("discover without docker: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestDiscoverFindsWidgetsAndProxiesImages(t *testing.T) {
+	app := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/foyer/widget":
+			fmt.Fprint(w, `{"version":1,"items":[{"title":"B","image":"/cover.jpg"}]}`)
+		case "/cover.jpg":
+			w.Header().Set("Content-Type", "image/jpeg")
+			fmt.Fprint(w, "JPEG")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer app.Close()
+
+	dir := t.TempDir()
+	store := config.NewStore(filepath.Join(dir, "foyer.yaml"))
+	cfg := config.Default()
+	cfg.Groups = []config.Group{{Name: "g", Services: []config.Service{
+		{Name: "Books", Ping: app.URL},
+		{Name: "Other", Ping: "http://127.0.0.1:1"},
+	}}}
+	if err := store.WriteInitial(cfg); err != nil {
+		t.Fatal(err)
+	}
+	h := New(store, monitor.New(store, nil, "/proc", "/sys"), nil, dir, nil).Handler()
+
+	body := do(h, "GET", "/api/discover", "").Body.String()
+	want := fmt.Sprintf(`"widgets":[{"service":"books","name":"Books","widget":{"type":"app","url":"%s/api/foyer/widget"}}]`, app.URL)
+	if !strings.Contains(body, want) {
+		t.Fatalf("discover: %s", body)
+	}
+
+	// Add the widget, then the cover comes through Foyer.
+	cfg.Groups[0].Services[0].Widget = config.Widget{"type": "app", "url": app.URL + "/api/foyer/widget"}
+	if _, err := store.Save(cfg); err != nil {
+		t.Fatal(err)
+	}
+	rec := do(h, "GET", "/api/widgets/books/image?path=/cover.jpg", "")
+	if rec.Code != 200 || rec.Body.String() != "JPEG" {
+		t.Fatalf("image: %d %s", rec.Code, rec.Body)
+	}
+	if rec := do(h, "GET", "/api/widgets/books/image?path=//evil/x", ""); rec.Code != 502 {
+		t.Fatalf("off-origin path: %d", rec.Code)
+	}
+	if rec := do(h, "GET", "/api/widgets/other/image?path=/cover.jpg", ""); rec.Code != 404 {
+		t.Fatalf("service without widget: %d", rec.Code)
 	}
 }

@@ -1,0 +1,219 @@
+package widgets
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/audemed44/foyer/internal/config"
+)
+
+// The Foyer widget format lets an app describe its own card. Version 1:
+//
+//	{
+//	  "version": 1,
+//	  "stats":    [{"label", "value", "unit"?, "caption"?, "tone"?}],
+//	  "progress": [{"label", "value", "max", "caption"?}],
+//	  "items_title": "…", "items_layout": "covers" | "list",
+//	  "items":    [{"title", "subtitle"?, "image"?, "url"?, "progress"?, "caption"?}]
+//	}
+//
+// Relative image paths are served by the app and fetched through Foyer
+// (ProxyImage); relative item URLs resolve against the service's link.
+
+// WellKnownPath is where apps serve their widget; discovery probes it.
+const WellKnownPath = "/api/foyer/widget"
+
+type AppStat struct {
+	Label   string `json:"label"`
+	Value   string `json:"value"`
+	Unit    string `json:"unit,omitempty"`
+	Caption string `json:"caption,omitempty"`
+	Tone    string `json:"tone,omitempty"` // good | warn | bad | accent
+}
+
+type AppProgress struct {
+	Label   string  `json:"label"`
+	Value   float64 `json:"value"`
+	Max     float64 `json:"max"`
+	Caption string  `json:"caption,omitempty"`
+}
+
+type AppItem struct {
+	Title    string   `json:"title"`
+	Subtitle string   `json:"subtitle,omitempty"`
+	Image    string   `json:"image,omitempty"`
+	URL      string   `json:"url,omitempty"`
+	Progress *float64 `json:"progress,omitempty"` // 0-100
+	Caption  string   `json:"caption,omitempty"`
+}
+
+type AppWidget struct {
+	Version     int           `json:"version"`
+	Stats       []AppStat     `json:"stats"`
+	Progress    []AppProgress `json:"progress"`
+	ItemsTitle  string        `json:"items_title,omitempty"`
+	ItemsLayout string        `json:"items_layout"`
+	Items       []AppItem     `json:"items"`
+}
+
+func clip(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if r := []rune(s); len(r) > n {
+		return string(r[:n-1]) + "…"
+	}
+	return s
+}
+
+// validTone and limits keep a misbehaving app from breaking the card.
+var validTone = map[string]bool{"good": true, "warn": true, "bad": true, "accent": true}
+
+func (w *AppWidget) sanitize() error {
+	if w.Version != 1 {
+		return fmt.Errorf("unsupported widget version %d", w.Version)
+	}
+	w.Stats = w.Stats[:min(len(w.Stats), 6)]
+	for i := range w.Stats {
+		s := &w.Stats[i]
+		s.Label, s.Value, s.Unit, s.Caption = clip(s.Label, 40), clip(s.Value, 16), clip(s.Unit, 16), clip(s.Caption, 60)
+		if !validTone[s.Tone] {
+			s.Tone = ""
+		}
+	}
+	w.Progress = w.Progress[:min(len(w.Progress), 4)]
+	for i := range w.Progress {
+		p := &w.Progress[i]
+		p.Label, p.Caption = clip(p.Label, 40), clip(p.Caption, 60)
+	}
+	w.Items = w.Items[:min(len(w.Items), 12)]
+	for i := range w.Items {
+		it := &w.Items[i]
+		it.Title, it.Subtitle, it.Caption = clip(it.Title, 120), clip(it.Subtitle, 120), clip(it.Caption, 40)
+		if it.Progress != nil {
+			v := max(0, min(100, *it.Progress))
+			it.Progress = &v
+		}
+		if !safeLink(it.URL) {
+			it.URL = ""
+		}
+		if !relativePath(it.Image) && !strings.HasPrefix(it.Image, "https://") {
+			it.Image = ""
+		}
+	}
+	if w.ItemsLayout != "covers" {
+		w.ItemsLayout = "list"
+	}
+	w.ItemsTitle = clip(w.ItemsTitle, 40)
+	if w.Stats == nil {
+		w.Stats = []AppStat{}
+	}
+	if w.Progress == nil {
+		w.Progress = []AppProgress{}
+	}
+	if w.Items == nil {
+		w.Items = []AppItem{}
+	}
+	return nil
+}
+
+// relativePath is an absolute path on the same origin ("/x"), not "//host".
+func relativePath(p string) bool {
+	return strings.HasPrefix(p, "/") && !strings.HasPrefix(p, "//") && !strings.Contains(p, "\\")
+}
+
+func safeLink(u string) bool {
+	return u == "" || relativePath(u) || strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "http://")
+}
+
+// app fetches a widget served by the app itself.
+// Settings: url, key (optional bearer token).
+func app(ctx context.Context, w config.Widget) (any, error) {
+	if err := required(w, "url"); err != nil {
+		return nil, err
+	}
+	var headers []string
+	if key := w.String("key"); key != "" {
+		headers = []string{"Authorization", "Bearer " + key}
+	}
+	var out AppWidget
+	if err := getJSON(ctx, w.String("url"), &out, headers...); err != nil {
+		return nil, err
+	}
+	if err := out.sanitize(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+var errNotImage = errors.New("not an image")
+
+// ProxyImage streams an image the app serves at path (from the widget's
+// data) to the browser, so the app's internal address stays private. Only
+// same-origin paths are allowed.
+func ProxyImage(ctx context.Context, w config.Widget, path string, dst http.ResponseWriter) error {
+	if w.Type() != "app" || !relativePath(path) {
+		return fmt.Errorf("invalid image path")
+	}
+	base, err := url.Parse(config.ExpandEnv(w.String("url")))
+	if err != nil || base.Host == "" {
+		return fmt.Errorf("invalid widget url")
+	}
+	target, err := url.Parse(path)
+	if err != nil {
+		return fmt.Errorf("invalid image path")
+	}
+	src := base.ResolveReference(target)
+	src.Scheme, src.Host, src.User = base.Scheme, base.Host, nil
+
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, src.String(), nil)
+	if err != nil {
+		return err
+	}
+	if key := config.ExpandEnv(w.String("key")); key != "" {
+		req.Header.Set("Authorization", "Bearer "+key)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("could not reach %s", src.Host)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("%s answered HTTP %d", src.Host, resp.StatusCode)
+	}
+	ct := resp.Header.Get("Content-Type")
+	if !strings.HasPrefix(ct, "image/") || strings.Contains(ct, "svg") {
+		// SVG can carry script; the other formats can't.
+		return errNotImage
+	}
+	dst.Header().Set("Content-Type", ct)
+	dst.Header().Set("Cache-Control", "public, max-age=3600")
+	dst.Header().Set("Content-Security-Policy", "default-src 'none'")
+	_, err = io.Copy(dst, io.LimitReader(resp.Body, 10<<20))
+	return err
+}
+
+// Probe reports whether an app at base (scheme://host:port) serves a Foyer
+// widget, returning the widget URL when it does.
+func Probe(ctx context.Context, base string) (string, bool) {
+	u, err := url.Parse(base)
+	if err != nil || u.Host == "" {
+		return "", false
+	}
+	u.Path, u.RawQuery, u.Fragment = WellKnownPath, "", ""
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	var out struct {
+		Version int `json:"version"`
+	}
+	if err := getJSON(ctx, u.String(), &out); err != nil || out.Version != 1 {
+		return "", false
+	}
+	return u.String(), true
+}

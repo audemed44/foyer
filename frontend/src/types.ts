@@ -124,4 +124,8 @@ export type Suggestion = {
   ping?: string;
   group?: string;
   labelled?: boolean;
+  widget?: Widget;
 };
+
+export type WidgetSuggestion = { service: string; name: string; widget: Widget };
+export type DiscoverResponse = { containers: Suggestion[]; widgets: WidgetSuggestion[] };

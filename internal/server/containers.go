@@ -5,11 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
+	"sync"
 	"time"
 
+	"github.com/audemed44/foyer/internal/config"
 	"github.com/audemed44/foyer/internal/discover"
 	"github.com/audemed44/foyer/internal/docker"
+	"github.com/audemed44/foyer/internal/widgets"
 )
 
 type containerInfo struct {
@@ -137,16 +141,64 @@ func (s *Server) containerLogs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// discoverServices suggests running containers that aren't on the dashboard.
+// discoverResponse lists containers to add and existing services whose app
+// serves a Foyer widget they don't show yet.
+type discoverResponse struct {
+	Containers []discover.Suggestion `json:"containers"`
+	Widgets    []widgetSuggestion    `json:"widgets"`
+}
+
+type widgetSuggestion struct {
+	Service string        `json:"service"` // service id
+	Name    string        `json:"name"`
+	Widget  config.Widget `json:"widget"`
+}
+
+// discoverServices suggests running containers that aren't on the dashboard,
+// and probes apps for the Foyer widget endpoint.
 func (s *Server) discoverServices(w http.ResponseWriter, r *http.Request) {
-	if s.docker == nil {
-		writeJSON(w, http.StatusOK, []discover.Suggestion{})
-		return
+	cfg := s.store.Config()
+	resp := discoverResponse{Containers: []discover.Suggestion{}, Widgets: []widgetSuggestion{}}
+	if s.docker != nil {
+		list, err := s.docker.List(r.Context())
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "could not reach Docker: "+err.Error())
+			return
+		}
+		resp.Containers = discover.Suggest(cfg, list)
 	}
-	list, err := s.docker.List(r.Context())
-	if err != nil {
-		writeError(w, http.StatusBadGateway, "could not reach Docker: "+err.Error())
-		return
+
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	probe := func(base string, found func(url string)) {
+		if base == "" {
+			return
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if url, ok := widgets.Probe(r.Context(), config.ExpandEnv(base)); ok {
+				mu.Lock()
+				found(url)
+				mu.Unlock()
+			}
+		}()
 	}
-	writeJSON(w, http.StatusOK, discover.Suggest(s.store.Config(), list))
+	for i := range resp.Containers {
+		c := &resp.Containers[i]
+		probe(c.Ping, func(url string) { c.Widget = config.Widget{"type": "app", "url": url} })
+	}
+	for _, svc := range cfg.Services() {
+		if svc.Widget != nil {
+			continue
+		}
+		probe(svc.Ping, func(url string) {
+			resp.Widgets = append(resp.Widgets, widgetSuggestion{
+				Service: svc.ID, Name: svc.Name, Widget: config.Widget{"type": "app", "url": url},
+			})
+		})
+	}
+	wg.Wait()
+	sort.Slice(resp.Widgets, func(i, j int) bool { return resp.Widgets[i].Name < resp.Widgets[j].Name })
+	writeJSON(w, http.StatusOK, resp)
 }

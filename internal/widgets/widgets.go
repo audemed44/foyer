@@ -25,10 +25,11 @@ var fetchers = map[string]fetcher{
 	"uptimekuma": uptimeKuma,
 	"speedtest":  speedtest,
 	"calendar":   calendar,
+	"app":        app,
 }
 
 // Types lists the supported widget types, for the editor.
-func Types() []string { return []string{"uptimekuma", "speedtest", "calendar"} }
+func Types() []string { return []string{"app", "uptimekuma", "speedtest", "calendar"} }
 
 var ErrUnknownType = errors.New("unknown widget type")
 

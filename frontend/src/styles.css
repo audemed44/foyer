@@ -2191,3 +2191,203 @@ input[type="range"] {
     font-size: 40px;
   }
 }
+
+/* ── App widget (Foyer widget format) ───────────────────────────────────── */
+
+.figure.good .figure-value {
+  color: var(--good);
+}
+.figure.warn .figure-value {
+  color: var(--warn);
+}
+.figure.accent .figure-value {
+  color: var(--accent-hi);
+}
+.figure-caption {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.app-widget {
+  gap: 22px;
+}
+.app-progress-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.app-progress-value {
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.app-progress-value span {
+  color: var(--fg-3);
+}
+.app-progress-caption {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-hi);
+}
+.app-progress .bar {
+  margin: 8px 0 0;
+}
+
+.app-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.app-covers,
+.app-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Covers: a scrolling shelf of 2:3 thumbnails with progress underneath. */
+.app-covers {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 104px;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scroll-snap-type: x proximity;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent);
+}
+.app-covers li {
+  scroll-snap-align: start;
+  min-width: 0;
+}
+.app-covers .app-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.app-covers .app-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  background: var(--well-bg);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.app-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s var(--ease);
+}
+.app-covers a.app-item:hover .app-thumb img {
+  transform: scale(1.04);
+}
+.app-thumb-fallback {
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+  background: linear-gradient(160deg, rgb(var(--accent-rgb) / 0.35), transparent 70%);
+  overflow: hidden;
+}
+.app-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.app-item-title {
+  font-size: 12.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.app-covers a.app-item:hover .app-item-title {
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 3px;
+}
+.app-item-sub {
+  font-size: 11.5px;
+  color: var(--fg-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-item-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.app-item-progress .bar {
+  flex: 1;
+  margin: 0;
+  height: 2px;
+}
+.app-item-caption {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* List: compact rows with a small thumbnail. */
+.app-list .app-item {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 110px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.app-list .app-thumb {
+  width: 36px;
+  height: 36px;
+  overflow: hidden;
+  background: var(--well-bg);
+}
+.app-list .app-thumb-fallback {
+  font-size: 0;
+}
+.app-list a.app-item:hover .app-item-title {
+  color: var(--accent-hi);
+}
+
+.suggest-widget {
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgb(var(--accent-rgb) / 0.25);
+}
+.suggest-widget:last-child {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: 0;
+}
+
+/* Keep progress bars aligned when some titles wrap to two lines. */
+.app-covers li {
+  display: flex;
+}
+.app-covers .app-item {
+  flex: 1;
+}
+.app-covers .app-item-progress,
+.app-covers .app-item > .app-item-caption {
+  margin-top: auto;
+}

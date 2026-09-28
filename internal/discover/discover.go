@@ -28,6 +28,8 @@ type Suggestion struct {
 	Group      string `json:"group,omitempty"`
 	// Labelled means the container carries foyer.* or homepage.* labels.
 	Labelled bool `json:"labelled,omitempty"`
+	// Widget is set when the app serves a Foyer widget.
+	Widget config.Widget `json:"widget,omitempty"`
 }
 
 // label reads foyer.<key>, falling back to Homepage's homepage.<alt> labels.
