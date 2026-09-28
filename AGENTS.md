@@ -18,12 +18,18 @@ and the Preact + TypeScript frontend (`frontend/`), which is built into
   long-lived caches; prefer the standard library. Host stats are read
   straight from /proc and /sys (Linux only).
 - The Go module has one dependency (yaml.v3). Justify any new one.
+- Docker access (`internal/docker`) is read-only: list, stats, logs. Stats
+  are sampled on demand and cached for a few seconds, never polled in the
+  background. Container names from requests are resolved against the list
+  (`Client.Find`) before reaching the Docker API.
+- There is no authentication by design; Foyer runs on private networks.
 - Widget settings (URLs, API keys) never reach the browser: `Config.Public()`
   strips them and widget data is fetched server-side. Secret fields are
   masked for the editor and restored on save (`RestoreSecrets`).
-- UI style: Swiss / OLED — black, hairline borders, square corners, one
-  accent colour, Geist Mono. Everything is themed through CSS variables in
-  `frontend/src/styles.css`. Check phone width too.
+- UI style: Swiss editorial on black — heavy Inter headlines with tight
+  tracking, tracked uppercase eyebrows, 2px rules over numbered headings,
+  hairline frames, square corners, one accent (#2563ff). Everything is themed
+  through CSS variables in `frontend/src/styles.css`. Check phone width too.
 
 ## Commits
 

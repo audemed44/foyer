@@ -146,3 +146,19 @@ export function greeting(hour: number): string {
 let counter = 0;
 /** Temporary id for items created in the editor; the server re-derives ids. */
 export const newId = (prefix: string) => `${prefix}-new-${Date.now().toString(36)}-${counter++}`;
+
+/** Container names the dashboard already points at (mirrors the server). */
+export function linkedContainers(config: Config): Set<string> {
+  const linked = new Set<string>();
+  for (const s of config.groups.flatMap((g) => g.services)) {
+    if (s.container) linked.add(s.container);
+    for (const raw of [s.ping, s.url]) {
+      try {
+        if (raw) linked.add(new URL(raw).hostname);
+      } catch {
+        // not a URL
+      }
+    }
+  }
+  return linked;
+}

@@ -15,6 +15,12 @@ Preact frontend, **~7 MB of RAM** at idle, in an 18 MB image.
   theme (dark OLED, light or system; accent colour; mono, sans or editorial
   type; outline, filled or glass cards; background image), bookmarks and
   custom CSS. Or edit `foyer.yaml` by hand; changes apply without a restart.
+- A **Containers** page: every container on the host, grouped by compose
+  project, with live CPU, memory, network and health
+- **Live logs** for any container (a Dozzle replacement): follow, search,
+  stderr highlighting, ANSI colours, timestamps, download
+- **Discovery**: in edit mode, running containers that aren't on the
+  dashboard are suggested with their name, icon, status check and link filled in
 - Imports an existing Homepage config on first start
 
 ## Run it
@@ -42,6 +48,36 @@ Open the page and click **Edit** to start customising.
 Foyer has no login: anyone who can reach it can edit the dashboard and read
 container logs. Run it on a private network, behind a VPN, or behind a
 reverse proxy that handles authentication.
+
+### Containers, logs and discovery
+
+These need the Docker socket mounted (read-only is enough) and the
+container's user in the docker group (`group_add` above). Foyer only reads
+from Docker: it never starts, stops or changes containers. Resource stats are
+sampled only while a page showing them is open.
+
+A service is linked to its container through `container:`, or automatically
+when its status check points at one (`ping: http://sonarr:8989` → `sonarr`).
+Linked cards show memory use on hover and a logs button.
+
+Suggestions come from running containers that nothing on the dashboard
+points at yet. They can be refined with labels on the container; Homepage's
+labels work too, so an existing setup carries over:
+
+| Label | Homepage equivalent | |
+|---|---|---|
+| `foyer.name` | `homepage.name` | Display name |
+| `foyer.group` | `homepage.group` | Group to add it to |
+| `foyer.icon` | `homepage.icon` | Icon |
+| `foyer.url` | `homepage.href` | Link |
+| `foyer.description` | `homepage.description` | |
+| `foyer.ping` | `homepage.siteMonitor` | Status check |
+| `foyer.hide=true` | | Never suggest this container |
+
+Without labels, Foyer guesses: the name from the compose service, the icon
+from the image, the status check from the exposed port, and the link from
+the domain your other services share (`https://<name>.example.com`).
+Dismissed suggestions are stored under `ignored_containers` in `foyer.yaml`.
 
 ### Moving from Homepage
 
@@ -139,6 +175,8 @@ bookmarks:
   - name: Dev
     links:
       - { name: GitHub, url: https://github.com, abbr: GH }
+
+ignored_containers: [watchtower]   # never suggested in edit mode
 ```
 
 **Icons** can be a [dashboard-icons](https://github.com/homarr-labs/dashboard-icons)

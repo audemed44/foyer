@@ -6,13 +6,14 @@ import {
   GripVertical,
   Pencil,
   Plus,
+  ScrollText,
   Trash2,
 } from "lucide-preact";
 import { useState } from "preact/hooks";
 import { useColumns } from "../hooks";
-import { groupSpan, iconUrl, packGroups, serviceSpan } from "../lib";
+import { formatBytes, groupSpan, iconUrl, packGroups, serviceSpan } from "../lib";
 import { useTint } from "../tint";
-import type { Config, Group, Service, ServiceStatus, StatusMap } from "../types";
+import type { Config, DockerContainer, Group, Service, ServiceStatus, StatusMap } from "../types";
 import { WidgetBody } from "../widgets";
 import { Icon } from "./Icon";
 
@@ -30,10 +31,12 @@ export type EditActions = {
 type Props = {
   config: Config;
   status: StatusMap;
+  containers: Map<string, DockerContainer>;
+  onLogs: (container: string) => void;
   edit: EditActions | null;
 };
 
-export function Groups({ config, status, edit }: Props) {
+export function Groups({ config, status, containers, onLogs, edit }: Props) {
   const { ref, columns } = useColumns(config.theme.columns, 260);
   // In edit mode the "Add service" tile needs a cell too.
   const spanOf = (g: Group) => Math.min(columns, groupSpan(g, columns) + (edit ? 1 : 0));
@@ -51,6 +54,8 @@ export function Groups({ config, status, edit }: Props) {
           columns={columns}
           config={config}
           status={status}
+          containers={containers}
+          onLogs={onLogs}
           edit={edit}
         />
       ))}
@@ -78,6 +83,8 @@ function GroupSection(props: {
   columns: number;
   config: Config;
   status: StatusMap;
+  containers: Map<string, DockerContainer>;
+  onLogs: (container: string) => void;
   edit: EditActions | null;
 }) {
   const { group, index, columns, config, status, edit, span } = props;
@@ -171,6 +178,8 @@ function GroupSection(props: {
               key={service.id}
               service={service}
               status={status[service.id]}
+              container={props.containers.get(status[service.id]?.container?.name ?? "")}
+              onLogs={props.onLogs}
               span={serviceSpan(service, tileCols)}
               newTab={config.open_in_new_tab}
               position={{ group: index, index: si }}
@@ -217,6 +226,8 @@ function statusInfo(st?: ServiceStatus): { tone: string; label: string } | null 
 function ServiceCard(props: {
   service: Service;
   status?: ServiceStatus;
+  container?: DockerContainer;
+  onLogs: (container: string) => void;
   span: number;
   newTab: boolean;
   position: Position;
@@ -237,6 +248,9 @@ function ServiceCard(props: {
 
   const tint = useTint(iconUrl(service.icon));
   const latency = info?.tone === "good" && props.status?.ping ? info.label : null;
+  const container = props.container;
+  const memory = container?.stats ? formatBytes(container.stats.mem_used) : null;
+  const hoverInfo = [latency, memory].filter(Boolean).join(" · ");
 
   const head = (
     <>
@@ -252,7 +266,7 @@ function ServiceCard(props: {
         )}
       </span>
       <span class="tile-side">
-        {latency && <span class="tile-latency">{latency}</span>}
+        {hoverInfo && <span class="tile-latency">{hoverInfo}</span>}
         {info && <span class={`dot ${info.tone}`} />}
       </span>
       {!edit && service.url && <ArrowUpRight size={15} class="tile-arrow" />}
@@ -306,22 +320,8 @@ function ServiceCard(props: {
   }
 
   const target = props.newTab ? "_blank" : undefined;
-  if (!service.widget) {
-    return (
-      <a
-        class={cls}
-        style={style}
-        href={service.url}
-        target={target}
-        rel="noopener noreferrer"
-        title={tooltip}
-      >
-        <div class="tile-head">{head}</div>
-      </a>
-    );
-  }
   return (
-    <div class={cls} style={style}>
+    <div class={`${cls} ${service.widget ? "" : "is-link"}`} style={style}>
       <a
         class="tile-head"
         href={service.url}
@@ -331,7 +331,17 @@ function ServiceCard(props: {
       >
         {head}
       </a>
-      <WidgetBody service={service} />
+      {container && (
+        <button
+          class="tile-logs"
+          title={`Logs for ${container.name}`}
+          aria-label={`Logs for ${container.name}`}
+          onClick={() => props.onLogs(container.name)}
+        >
+          <ScrollText size={14} />
+        </button>
+      )}
+      {service.widget && <WidgetBody service={service} />}
     </div>
   );
 }

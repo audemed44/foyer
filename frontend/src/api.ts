@@ -1,4 +1,11 @@
-import type { Config, ConfigResponse, StatusMap, SystemStats } from "./types";
+import type {
+  Config,
+  ConfigResponse,
+  DockerContainer,
+  StatusMap,
+  Suggestion,
+  SystemStats,
+} from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -37,4 +44,8 @@ export const api = {
   system: () => request<SystemStats>("/api/system"),
   widget: <T>(id: string) => request<T>(`/api/widgets/${encodeURIComponent(id)}`),
   icons: () => request<string[]>("/api/icons"),
+  containers: () => request<DockerContainer[]>("/api/containers"),
+  discover: () => request<Suggestion[]>("/api/discover"),
+  logsUrl: (name: string, tail = 500) =>
+    `/api/containers/${encodeURIComponent(name)}/logs?tail=${tail}`,
 };

@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/audemed44/foyer/internal/config"
+	"github.com/audemed44/foyer/internal/docker"
 	"github.com/audemed44/foyer/internal/monitor"
 	"github.com/audemed44/foyer/internal/widgets"
 )
@@ -21,14 +22,15 @@ import (
 type Server struct {
 	store     *config.Store
 	monitor   *monitor.Monitor
+	docker    *docker.Client // nil without a Docker socket
 	widgets   *widgets.Service
 	assetsDir string // holds icons/ and images/
 	web       fs.FS
 }
 
-func New(store *config.Store, mon *monitor.Monitor, assetsDir string, web fs.FS) *Server {
+func New(store *config.Store, mon *monitor.Monitor, dock *docker.Client, assetsDir string, web fs.FS) *Server {
 	return &Server{
-		store: store, monitor: mon, widgets: widgets.NewService(),
+		store: store, monitor: mon, widgets: widgets.NewService(), docker: dock,
 		assetsDir: assetsDir, web: web,
 	}
 }
@@ -42,6 +44,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/system", s.getSystem)
 	mux.HandleFunc("GET /api/widgets/{id}", s.getWidget)
 	mux.HandleFunc("GET /api/icons", s.listIcons)
+	mux.HandleFunc("GET /api/containers", s.listContainers)
+	mux.HandleFunc("GET /api/discover", s.discoverServices)
+	mux.HandleFunc("GET /api/containers/{name}/logs", s.containerLogs)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})

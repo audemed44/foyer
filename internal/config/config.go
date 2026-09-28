@@ -108,6 +108,8 @@ type Config struct {
 	Header       Header          `yaml:"header" json:"header"`
 	Groups       []Group         `yaml:"groups" json:"groups"`
 	Bookmarks    []BookmarkGroup `yaml:"bookmarks" json:"bookmarks"`
+	// IgnoredContainers are never suggested as new services in edit mode.
+	IgnoredContainers []string `yaml:"ignored_containers" json:"ignored_containers"`
 }
 
 // Default is the starting point every config file is decoded over, so keys
@@ -129,8 +131,9 @@ func Default() Config {
 				Disks: []string{"/"},
 			},
 		},
-		Groups:    []Group{},
-		Bookmarks: []BookmarkGroup{},
+		Groups:            []Group{},
+		Bookmarks:         []BookmarkGroup{},
+		IgnoredContainers: []string{},
 	}
 }
 
@@ -200,6 +203,9 @@ func (c *Config) Normalize() error {
 				return fmt.Errorf("service %q: widget needs a type", s.Name)
 			}
 		}
+	}
+	if c.IgnoredContainers == nil {
+		c.IgnoredContainers = []string{}
 	}
 	for bi := range c.Bookmarks {
 		if c.Bookmarks[bi].Links == nil {
