@@ -58,10 +58,6 @@ func main() {
 		socket = ""
 	}
 	mon := monitor.New(store, socket, env("FOYER_PROC", "/proc"), env("FOYER_SYS", "/sys"))
-	auth := server.NewAuth(os.Getenv("FOYER_PASSWORD"))
-	if !auth.Enabled() {
-		slog.Info("FOYER_PASSWORD is not set; edit mode is disabled")
-	}
 
 	dist, err := fs.Sub(web.Dist, "dist")
 	if err != nil {
@@ -69,7 +65,7 @@ func main() {
 	}
 	srv := &http.Server{
 		Addr:              ":" + env("FOYER_PORT", "8080"),
-		Handler:           server.New(store, mon, auth, configDir, dist).Handler(),
+		Handler:           server.New(store, mon, configDir, dist).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

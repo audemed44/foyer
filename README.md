@@ -29,7 +29,6 @@ services:
     extra_hosts: ["host.docker.internal:host-gateway"]
     environment:
       - TZ=Europe/London
-      - FOYER_PASSWORD=change-me  # enables edit mode
     volumes:
       - ./foyer:/config
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -38,9 +37,11 @@ services:
       - "3030:8080"
 ```
 
-Open the page and click **Edit** in the bottom-right corner to start
-customising. Without `FOYER_PASSWORD`, the dashboard is read-only and is
-configured through the YAML file.
+Open the page and click **Edit** to start customising.
+
+Foyer has no login: anyone who can reach it can edit the dashboard and read
+container logs. Run it on a private network, behind a VPN, or behind a
+reverse proxy that handles authentication.
 
 ### Moving from Homepage
 
@@ -63,7 +64,6 @@ Supported widgets are carried over (`uptimekuma`, `speedtest`, and
 
 | Variable | Default | |
 |---|---|---|
-| `FOYER_PASSWORD` | — | Password for edit mode. Unset means read-only. |
 | `FOYER_CONFIG_DIR` | `/config` | Holds `foyer.yaml`, `icons/` and `images/`. |
 | `FOYER_PORT` | `8080` | |
 | `FOYER_IMPORT_DIR` | `/homepage` | Homepage config to import on first start. |

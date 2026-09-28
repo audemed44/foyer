@@ -66,8 +66,6 @@ export type Config = {
 export type ConfigResponse = {
   config: Config;
   error?: string;
-  can_edit: boolean;
-  logged_in: boolean;
   widget_types: string[];
 };
 

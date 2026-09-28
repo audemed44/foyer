@@ -1,8 +1,8 @@
-import { FolderPlus, LogOut, Pencil, Settings2 } from "lucide-preact";
+import { FolderPlus, Pencil, Settings2 } from "lucide-preact";
 import { useCallback, useEffect, useState } from "preact/hooks";
-import { api, ApiError } from "./api";
+import { api } from "./api";
 import { Bookmarks } from "./components/Bookmarks";
-import { GroupDialog, LoginDialog, ServiceDialog, SettingsDialog } from "./components/Editor";
+import { GroupDialog, ServiceDialog, SettingsDialog } from "./components/Editor";
 import { Groups, type EditActions, type Position } from "./components/Groups";
 import { Header } from "./components/Header";
 import { Search } from "./components/Search";
@@ -12,7 +12,6 @@ import { applyTheme } from "./theme";
 import type { Config, ConfigResponse, Group, Service, StatusMap } from "./types";
 
 type Modal =
-  | { kind: "login" }
   | { kind: "settings" }
   | { kind: "service"; group: number; index: number | null }
   | { kind: "group"; index: number | null };
@@ -66,8 +65,7 @@ export function App() {
       setDirty(false);
       setSaveError(null);
     } catch (e) {
-      if (e instanceof ApiError && e.status === 401) setModal({ kind: "login" });
-      else setSaveError(e instanceof Error ? e.message : String(e));
+      setSaveError(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -97,13 +95,6 @@ export function App() {
     setDraft(null);
     setDirty(false);
     setSaveError(null);
-  };
-
-  const logout = async () => {
-    await api.logout();
-    setDraft(null);
-    setDirty(false);
-    await reload();
   };
 
   const mapGroups = (fn: (groups: Group[]) => Group[]) =>
@@ -196,10 +187,7 @@ export function App() {
         <Search config={config} />
         <Groups config={config} status={status ?? {}} edit={edit} />
         {config.groups.length === 0 && (
-          <div class="empty">
-            No services yet.{" "}
-            {meta?.can_edit ? "Open edit mode to add some." : "Add them to foyer.yaml."}
-          </div>
+          <div class="empty">No services yet. Click Edit below to add some.</div>
         )}
         <Bookmarks config={config} />
         <footer class="foot">
@@ -212,29 +200,14 @@ export function App() {
             )}
           </span>
           <span class="spacer" />
-          {!draft && meta?.can_edit && (
+          {!draft && (
             <button class="foot-btn" onClick={startEditing} title="Edit dashboard">
               <Pencil size={13} /> Edit
-            </button>
-          )}
-          {meta?.logged_in && !draft && (
-            <button class="foot-btn" onClick={logout} title="Sign out">
-              <LogOut size={13} />
             </button>
           )}
         </footer>
       </main>
 
-      {modal?.kind === "login" && (
-        <LoginDialog
-          onClose={() => setModal(null)}
-          onDone={async () => {
-            setModal(null);
-            await reload();
-            await startEditing();
-          }}
-        />
-      )}
       {modal?.kind === "settings" && draft && (
         <SettingsDialog config={draft} onChange={change} onClose={() => setModal(null)} />
       )}
