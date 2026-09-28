@@ -1,19 +1,31 @@
-import { FolderPlus, Pencil, Settings2 } from "lucide-preact";
+import { Boxes, FolderPlus, LayoutGrid, Pencil, Settings2 } from "lucide-preact";
 import { useCallback, useEffect, useState } from "preact/hooks";
 import { api } from "./api";
 import { Bookmarks } from "./components/Bookmarks";
+import { ContainersPage } from "./components/Containers";
 import { GroupDialog, ServiceDialog, SettingsDialog } from "./components/Editor";
 import { Groups, type EditActions, type Position } from "./components/Groups";
 import { Header } from "./components/Header";
+import { LogViewer } from "./components/Logs";
 import { Search } from "./components/Search";
+import { Suggestions } from "./components/Suggestions";
 import { usePoll } from "./hooks";
 import { newId } from "./lib";
+import { navigate, routeHref, useRoute } from "./router";
 import { applyTheme } from "./theme";
-import type { Config, ConfigResponse, Group, Service, StatusMap } from "./types";
+import type {
+  Config,
+  ConfigResponse,
+  DockerContainer,
+  Group,
+  Service,
+  StatusMap,
+  Suggestion,
+} from "./types";
 
 type Modal =
   | { kind: "settings" }
-  | { kind: "service"; group: number; index: number | null }
+  | { kind: "service"; group: number; index: number | null; prefill?: Service }
   | { kind: "group"; index: number | null };
 
 export function App() {
@@ -41,7 +53,11 @@ export function App() {
     return () => window.clearInterval(t);
   }, [reload, draft]);
 
+  const route = useRoute();
   const { data: status } = usePoll<StatusMap>(api.status, 15000);
+  // Container stats for the service cards (memory on hover, logs button).
+  const { data: containerList } = usePoll<DockerContainer[]>(api.containers, 15000);
+  const containers = new Map((containerList ?? []).map((c) => [c.name, c]));
 
   const config = draft ?? meta?.config ?? null;
   useEffect(() => {
@@ -145,6 +161,36 @@ export function App() {
     setModal(null);
   };
 
+  // Discovery: open the service editor pre-filled from a container.
+  const addSuggestion = (sg: Suggestion) => {
+    if (!draft) return;
+    let groups = draft.groups;
+    if (groups.length === 0) {
+      groups = [{ id: newId("group"), name: sg.group || "Apps", collapsed: false, services: [] }];
+      change({ ...draft, groups });
+    }
+    const match = groups.findIndex((g) => g.name.toLowerCase() === (sg.group ?? "").toLowerCase());
+    setModal({
+      kind: "service",
+      group: Math.max(0, match),
+      index: null,
+      prefill: {
+        id: newId("service"),
+        name: sg.name,
+        url: sg.url,
+        description: sg.description,
+        icon: sg.icon,
+        ping: sg.ping,
+        container: sg.container,
+      },
+    });
+  };
+  const ignoreContainer = (name: string) =>
+    draft && change({ ...draft, ignored_containers: [...draft.ignored_containers, name] });
+
+  const openLogs = (name: string) => navigate({ ...route, logs: name });
+  const closeLogs = () => navigate({ ...route, logs: null });
+
   const totals = Object.values(status ?? {}).reduce(
     (acc, s) => {
       if (s.ping) acc[s.ping.state === "up" ? "up" : "down"]++;
@@ -177,19 +223,61 @@ export function App() {
         </div>
       )}
 
+      {!draft && (
+        <nav class="topnav">
+          <a class="topnav-brand" href="#/">
+            {config.title}
+          </a>
+          <span class="spacer" />
+          <a
+            class={`topnav-link ${route.page === "home" ? "on" : ""}`}
+            href={routeHref({ page: "home", logs: null })}
+          >
+            <LayoutGrid size={14} /> Dashboard
+          </a>
+          <a
+            class={`topnav-link ${route.page === "containers" ? "on" : ""}`}
+            href={routeHref({ page: "containers", logs: null })}
+          >
+            <Boxes size={14} /> Containers
+          </a>
+          {route.page === "home" && (
+            <button class="topnav-link" onClick={startEditing} title="Edit dashboard">
+              <Pencil size={14} /> Edit
+            </button>
+          )}
+        </nav>
+      )}
+
       <main class="shell">
+        {saveError && !draft && <div class="banner">{saveError}</div>}
         {meta?.error && (
           <div class="banner">
             Config error — showing the last good version. <code>{meta.error}</code>
           </div>
         )}
-        <Header config={config} status={status ?? null} />
-        <Search config={config} />
-        <Groups config={config} status={status ?? {}} edit={edit} />
-        {config.groups.length === 0 && (
-          <div class="empty">No services yet. Click Edit below to add some.</div>
+        {route.page === "containers" && !draft ? (
+          <ContainersPage onLogs={openLogs} />
+        ) : (
+          <>
+            <Header config={config} status={status ?? null} />
+            <Search config={config} />
+            {draft && (
+              <Suggestions config={draft} onAdd={addSuggestion} onIgnore={ignoreContainer} />
+            )}
+            <Groups
+              config={config}
+              status={status ?? {}}
+              containers={containers}
+              onLogs={openLogs}
+              edit={edit}
+            />
+            {config.groups.length === 0 && (
+              <div class="empty">No services yet. Click Edit above to add some.</div>
+            )}
+            <Bookmarks config={config} />
+          </>
         )}
-        <Bookmarks config={config} />
         <footer class="foot">
           <span>
             {totals.up + totals.down > 0 && (
@@ -199,14 +287,10 @@ export function App() {
               </>
             )}
           </span>
-          <span class="spacer" />
-          {!draft && (
-            <button class="foot-btn" onClick={startEditing} title="Edit dashboard">
-              <Pencil size={13} /> Edit
-            </button>
-          )}
         </footer>
       </main>
+
+      {route.logs && <LogViewer name={route.logs} onClose={closeLogs} />}
 
       {modal?.kind === "settings" && draft && (
         <SettingsDialog config={draft} onChange={change} onClose={() => setModal(null)} />
@@ -216,7 +300,7 @@ export function App() {
           service={
             modal.index !== null
               ? draft.groups[modal.group].services[modal.index]
-              : { id: newId("service"), name: "" }
+              : (modal.prefill ?? { id: newId("service"), name: "" })
           }
           groups={draft.groups}
           groupIndex={modal.group}

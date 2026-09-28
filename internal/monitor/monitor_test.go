@@ -80,7 +80,7 @@ func TestCheckServices(t *testing.T) {
 	}}}
 	store.WriteInitial(cfg)
 
-	m := New(store, "", "/proc", "/sys")
+	m := New(store, nil, "/proc", "/sys")
 	m.checkServices(context.Background())
 	st := m.Status()
 	if st["up"].Ping.State != "up" || st["up"].Ping.Code != 302 {

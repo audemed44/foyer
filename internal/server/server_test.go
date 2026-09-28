@@ -25,9 +25,9 @@ func setup(t *testing.T) (http.Handler, *config.Store) {
 	if err := store.WriteInitial(cfg); err != nil {
 		t.Fatal(err)
 	}
-	mon := monitor.New(store, "", "/proc", "/sys")
+	mon := monitor.New(store, nil, "/proc", "/sys")
 	web := fstest.MapFS{"index.html": {Data: []byte("<html>app</html>")}, "assets/a.js": {Data: []byte("js")}}
-	return New(store, mon, dir, web).Handler(), store
+	return New(store, mon, nil, dir, web).Handler(), store
 }
 
 func do(h http.Handler, method, path, body string, cookies ...*http.Cookie) *httptest.ResponseRecorder {

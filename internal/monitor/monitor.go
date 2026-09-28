@@ -5,15 +5,15 @@ package monitor
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"log/slog"
-	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/audemed44/foyer/internal/config"
+	"github.com/audemed44/foyer/internal/docker"
 )
 
 const historyLen = 60
@@ -27,6 +27,7 @@ type Ping struct {
 }
 
 type Container struct {
+	Name   string `json:"name"`
 	State  string `json:"state"` // running | exited | ... | missing
 	Status string `json:"status"`
 	Health string `json:"health,omitempty"`
@@ -38,10 +39,10 @@ type ServiceStatus struct {
 }
 
 type Monitor struct {
-	store        *config.Store
-	dockerSocket string
-	proc, sys    string
-	wake         chan struct{}
+	store     *config.Store
+	docker    *docker.Client // nil without a Docker socket
+	proc, sys string
+	wake      chan struct{}
 
 	mu         sync.RWMutex
 	pings      map[string]Ping // by ping URL, so renames don't lose results
@@ -51,9 +52,9 @@ type Monitor struct {
 	lastCPU    cpuTimes
 }
 
-func New(store *config.Store, dockerSocket, proc, sys string) *Monitor {
+func New(store *config.Store, dock *docker.Client, proc, sys string) *Monitor {
 	return &Monitor{
-		store: store, dockerSocket: dockerSocket, proc: proc, sys: sys,
+		store: store, docker: dock, proc: proc, sys: sys,
 		wake:  make(chan struct{}, 1),
 		pings: map[string]Ping{}, containers: map[string]Container{},
 	}
@@ -165,47 +166,40 @@ func (m *Monitor) checkServices(ctx context.Context) {
 }
 
 func (m *Monitor) fetchContainers(ctx context.Context) map[string]Container {
-	if m.dockerSocket == "" {
+	if m.docker == nil {
 		return nil
 	}
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				return (&net.Dialer{}).DialContext(ctx, "unix", m.dockerSocket)
-			},
-		},
-	}
-	defer client.CloseIdleConnections()
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://docker/containers/json?all=1", nil)
-	resp, err := client.Do(req)
+	list, err := m.docker.List(ctx)
 	if err != nil {
 		slog.Debug("docker unavailable", "err", err)
 		return nil
 	}
-	defer resp.Body.Close()
-	var items []struct {
-		Names  []string
-		State  string
-		Status string
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
-		return nil
-	}
-	out := make(map[string]Container, len(items))
-	for _, item := range items {
-		c := Container{State: item.State, Status: item.Status}
-		for _, h := range []string{"unhealthy", "healthy", "starting"} {
-			if strings.Contains(item.Status, "("+h+")") || strings.Contains(item.Status, "health: "+h) {
-				c.Health = h
-				break
-			}
-		}
-		for _, name := range item.Names {
-			out[strings.TrimPrefix(name, "/")] = c
-		}
+	out := make(map[string]Container, len(list))
+	for _, c := range list {
+		out[c.Name] = Container{Name: c.Name, State: c.State, Status: c.Status, Health: c.Health}
 	}
 	return out
+}
+
+// containerFor is the service's container: the configured one, or else the
+// container its status check points at (http://sonarr:8989 → "sonarr").
+func (m *Monitor) containerFor(s *config.Service) (Container, bool) {
+	if s.Container != "" {
+		c, ok := m.containers[s.Container]
+		if !ok {
+			c = Container{Name: s.Container, State: "missing", Status: "No such container"}
+		}
+		return c, true
+	}
+	if s.Ping == "" {
+		return Container{}, false
+	}
+	u, err := url.Parse(config.ExpandEnv(s.Ping))
+	if err != nil {
+		return Container{}, false
+	}
+	c, ok := m.containers[u.Hostname()]
+	return c, ok
 }
 
 func (m *Monitor) Status() map[string]ServiceStatus {
@@ -219,12 +213,10 @@ func (m *Monitor) Status() map[string]ServiceStatus {
 				st.Ping = &p
 			}
 		}
-		if s.Container != "" && len(m.containers) > 0 {
-			c, ok := m.containers[s.Container]
-			if !ok {
-				c = Container{State: "missing", Status: "No such container"}
+		if len(m.containers) > 0 {
+			if c, ok := m.containerFor(s); ok {
+				st.Container = &c
 			}
-			st.Container = &c
 		}
 		out[s.ID] = st
 	}

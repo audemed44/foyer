@@ -16,6 +16,7 @@ import (
 	_ "time/tzdata" // the runtime image has no zoneinfo; TZ needs this
 
 	"github.com/audemed44/foyer/internal/config"
+	"github.com/audemed44/foyer/internal/docker"
 	"github.com/audemed44/foyer/internal/monitor"
 	"github.com/audemed44/foyer/internal/server"
 	"github.com/audemed44/foyer/web"
@@ -57,7 +58,11 @@ func main() {
 		slog.Info("docker socket not found; container state disabled", "path", socket)
 		socket = ""
 	}
-	mon := monitor.New(store, socket, env("FOYER_PROC", "/proc"), env("FOYER_SYS", "/sys"))
+	var dock *docker.Client
+	if socket != "" {
+		dock = docker.New(socket)
+	}
+	mon := monitor.New(store, dock, env("FOYER_PROC", "/proc"), env("FOYER_SYS", "/sys"))
 
 	dist, err := fs.Sub(web.Dist, "dist")
 	if err != nil {
@@ -65,7 +70,7 @@ func main() {
 	}
 	srv := &http.Server{
 		Addr:              ":" + env("FOYER_PORT", "8080"),
-		Handler:           server.New(store, mon, configDir, dist).Handler(),
+		Handler:           server.New(store, mon, dock, configDir, dist).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

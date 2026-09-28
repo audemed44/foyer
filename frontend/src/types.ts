@@ -61,6 +61,7 @@ export type Config = {
   };
   groups: Group[];
   bookmarks: BookmarkGroup[];
+  ignored_containers: string[];
 };
 
 export type ConfigResponse = {
@@ -77,7 +78,7 @@ export type Ping = {
   checked_at: number;
 };
 
-export type ContainerState = { state: string; status: string; health?: string };
+export type ContainerState = { name: string; state: string; status: string; health?: string };
 export type ServiceStatus = { ping?: Ping; container?: ContainerState };
 export type StatusMap = Record<string, ServiceStatus>;
 
@@ -87,4 +88,40 @@ export type SystemStats = {
   uptime: number;
   temperature: number | null;
   disks: { path: string; used: number; total: number; percent: number }[];
+};
+
+export type DockerStats = {
+  cpu: number | null;
+  mem_used: number;
+  mem_limit: number;
+  net_rx: number;
+  net_tx: number;
+  pids: number;
+};
+
+export type DockerContainer = {
+  id: string;
+  name: string;
+  image: string;
+  state: string;
+  status: string;
+  health?: string;
+  created: number;
+  project?: string;
+  stats?: DockerStats;
+};
+
+export type LogLine = { t?: string; s: "out" | "err"; m: string };
+
+export type Suggestion = {
+  container: string;
+  image: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  url?: string;
+  url_guessed?: boolean;
+  ping?: string;
+  group?: string;
+  labelled?: boolean;
 };
