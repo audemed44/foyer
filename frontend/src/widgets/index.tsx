@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowUp, Timer } from "lucide-preact";
 import type { ComponentChildren } from "preact";
+import { useState } from "preact/hooks";
 import { api } from "../api";
 import { usePoll, useNow } from "../hooks";
 import { timeAgo } from "../lib";
@@ -18,6 +19,8 @@ export function WidgetBody({ service }: { service: Service }) {
       return <Speedtest data={data as SpeedData} />;
     case "calendar":
       return <Calendar data={data as CalendarData} />;
+    case "app":
+      return <AppWidget data={data as AppData} service={service} />;
   }
   return <div class="widget widget-error">Unknown widget “{type}”</div>;
 }
@@ -169,6 +172,7 @@ function Figure(props: {
   label: string;
   unit?: string;
   tone?: string;
+  caption?: string;
   icon?: ComponentChildren;
 }) {
   return (
@@ -181,6 +185,131 @@ function Figure(props: {
         {props.icon}
         {props.label}
       </p>
+      {props.caption && <p class="figure-caption">{props.caption}</p>}
+    </div>
+  );
+}
+
+// ── App widgets (the Foyer widget format, served by the app itself) ──────
+
+/** A cover or thumbnail that falls back to a title block if it can't load. */
+function Thumb({ src, title }: { src?: string; title: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) return <span class="app-thumb-fallback">{title}</span>;
+  return <img src={src} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} />;
+}
+
+type AppData = {
+  stats: { label: string; value: string; unit?: string; caption?: string; tone?: string }[];
+  progress: { label: string; value: number; max: number; caption?: string }[];
+  items_title?: string;
+  items_layout: "covers" | "list";
+  items: {
+    title: string;
+    subtitle?: string;
+    image?: string;
+    url?: string;
+    progress?: number;
+    caption?: string;
+  }[];
+};
+
+/** Relative item links point into the app's public site. */
+function itemHref(url: string | undefined, service: Service): string | undefined {
+  if (!url) return undefined;
+  if (/^https?:\/\//.test(url)) return url;
+  if (!service.url) return undefined;
+  try {
+    return new URL(url, service.url).toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function AppWidget({ data, service }: { data: AppData; service: Service }) {
+  const image = (src?: string) =>
+    src ? (src.startsWith("/") ? api.widgetImage(service.id, src) : src) : undefined;
+  const empty = !data.stats.length && !data.progress.length && !data.items.length;
+  if (empty) return <div class="widget widget-empty">Nothing to show yet</div>;
+
+  return (
+    <div class="widget app-widget">
+      {data.stats.length > 0 && (
+        <div class="figures">
+          {data.stats.map((s) => (
+            <Figure
+              key={s.label}
+              value={s.value}
+              unit={s.unit}
+              label={s.label}
+              caption={s.caption}
+              tone={s.tone}
+            />
+          ))}
+        </div>
+      )}
+      {data.progress.map((p) => {
+        const pct = p.max > 0 ? Math.min(100, (p.value / p.max) * 100) : 0;
+        return (
+          <div class="app-progress" key={p.label}>
+            <div class="app-progress-head">
+              <span class="eyebrow">{p.label}</span>
+              <span class="app-progress-value">
+                {p.value}
+                <span>/{p.max}</span>
+              </span>
+              {p.caption && <span class="app-progress-caption">{p.caption}</span>}
+            </div>
+            <div class="bar">
+              <span style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        );
+      })}
+      {data.items.length > 0 && (
+        <div class="app-items">
+          {data.items_title && <p class="eyebrow eyebrow-accent">{data.items_title}</p>}
+          <ul class={data.items_layout === "covers" ? "app-covers" : "app-list"}>
+            {data.items.map((it, i) => {
+              const href = itemHref(it.url, service);
+              const src = image(it.image);
+              const body = (
+                <>
+                  <span class="app-thumb">
+                    <Thumb src={src} title={it.title} />
+                  </span>
+                  <span class="app-item-text">
+                    <span class="app-item-title">{it.title}</span>
+                    {it.subtitle && <span class="app-item-sub">{it.subtitle}</span>}
+                  </span>
+                  {it.progress != null && (
+                    <span class="app-item-progress">
+                      <span class="bar">
+                        <span style={{ width: `${it.progress}%` }} />
+                      </span>
+                      {it.caption && <span class="app-item-caption">{it.caption}</span>}
+                    </span>
+                  )}
+                  {it.progress == null && it.caption && (
+                    <span class="app-item-caption">{it.caption}</span>
+                  )}
+                </>
+              );
+              return (
+                <li key={i}>
+                  {href ? (
+                    <a href={href} target="_blank" rel="noopener noreferrer" class="app-item">
+                      {body}
+                    </a>
+                  ) : (
+                    <div class="app-item">{body}</div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

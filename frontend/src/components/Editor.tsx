@@ -18,6 +18,14 @@ type WidgetField = {
 };
 
 const WIDGET_FIELDS: Record<string, WidgetField[]> = {
+  app: [
+    {
+      key: "url",
+      label: "Widget URL",
+      hint: "An app serving the Foyer widget format, e.g. http://shelfloom:8000/api/foyer/widget",
+    },
+    { key: "key", label: "API token (optional)", secret: true, hint: "Sent as a bearer token." },
+  ],
   uptimekuma: [
     { key: "url", label: "Uptime Kuma URL", hint: "As reachable from the Foyer container." },
     { key: "slug", label: "Status page slug" },
@@ -45,6 +53,7 @@ const WIDGET_FIELDS: Record<string, WidgetField[]> = {
 };
 
 const WIDGET_LABELS: Record<string, string> = {
+  app: "App (Foyer widget)",
   uptimekuma: "Uptime Kuma",
   speedtest: "Speedtest Tracker",
   calendar: "Calendar (iCal)",

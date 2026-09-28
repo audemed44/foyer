@@ -10,7 +10,9 @@ Preact frontend, **~7 MB of RAM** at idle, in an 18 MB image.
   uptime)
 - One search box for everything: type to filter your services and press Enter
   to open one, or search the web when nothing matches. Press `/` to focus it.
-- Widgets for Uptime Kuma, Speedtest Tracker and iCal calendars
+- Widgets for Uptime Kuma, Speedtest Tracker and iCal calendars, plus
+  **app widgets**: any app can describe its own card in the
+  [Foyer widget format](#app-widgets) (Shelfloom does)
 - Customise it from the browser: drag services around, edit groups, change the
   theme (dark OLED, light or system; accent colour; mono, sans or editorial
   type; outline, filled or glass cards; background image), bookmarks and
@@ -178,6 +180,69 @@ bookmarks:
 
 ignored_containers: [watchtower]   # never suggested in edit mode
 ```
+
+## App widgets
+
+Apps can serve their own widget, and Foyer renders it in the same style as
+the built-in ones. [Shelfloom](https://github.com/audemed44/shelfloom) does
+this: books read this year against your goal, streak, reading time, and the
+books you're reading as a shelf of covers.
+
+```yaml
+      - name: Shelfloom
+        url: https://books.example.com
+        ping: http://shelfloom:8000
+        widget:
+          type: app
+          url: http://shelfloom:8000/api/foyer/widget
+          key: ${SHELFLOOM_TOKEN}   # optional, sent as a bearer token
+```
+
+You rarely need to type this: in edit mode, Foyer checks the apps on your
+dashboard (and newly discovered containers) for `/api/foyer/widget` and
+offers to add the widget.
+
+### The format (version 1)
+
+To give your own app a widget, serve JSON like this (every section is
+optional):
+
+```json
+{
+  "version": 1,
+  "stats": [
+    { "label": "Read in 2026", "value": "122", "unit": "/52", "caption": "books", "tone": "good" }
+  ],
+  "progress": [
+    { "label": "2026 goal", "value": 122, "max": 52, "caption": "Goal reached" }
+  ],
+  "items_title": "Currently reading",
+  "items_layout": "covers",
+  "items": [
+    {
+      "title": "Dune",
+      "subtitle": "Frank Herbert",
+      "image": "/api/books/42/cover",
+      "url": "/books/42",
+      "progress": 64,
+      "caption": "64%"
+    }
+  ]
+}
+```
+
+- `stats`: up to 6 big figures. `tone` is `good`, `warn`, `bad` or `accent`.
+- `progress`: up to 4 labelled bars.
+- `items`: up to 12, shown as a row of 2:3 `covers` or a compact `list`.
+  `progress` is 0–100.
+- `image` paths starting with `/` are fetched from the app by Foyer and
+  proxied to the browser, so the app's internal address stays private (only
+  same-origin paths; SVG isn't proxied). Public `https://` images are used
+  directly.
+- `url` paths starting with `/` resolve against the service's link, so they
+  open the app's public page.
+
+Foyer refreshes the widget every minute and caches it for 45 seconds.
 
 **Icons** can be a [dashboard-icons](https://github.com/homarr-labs/dashboard-icons)
 name (`sonarr.png`, `jellyfin.svg`), a Simple Icons slug (`si-github`), a

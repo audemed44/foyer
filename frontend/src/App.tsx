@@ -21,6 +21,7 @@ import type {
   Service,
   StatusMap,
   Suggestion,
+  Widget,
 } from "./types";
 
 type Modal =
@@ -182,9 +183,17 @@ export function App() {
         icon: sg.icon,
         ping: sg.ping,
         container: sg.container,
+        widget: sg.widget,
       },
     });
   };
+  const addWidget = (serviceId: string, widget: Widget) =>
+    mapGroups((groups) =>
+      groups.map((g) => ({
+        ...g,
+        services: g.services.map((sv) => (sv.id === serviceId ? { ...sv, widget } : sv)),
+      })),
+    );
   const ignoreContainer = (name: string) =>
     draft && change({ ...draft, ignored_containers: [...draft.ignored_containers, name] });
 
@@ -263,7 +272,12 @@ export function App() {
             <Header config={config} status={status ?? null} />
             <Search config={config} />
             {draft && (
-              <Suggestions config={draft} onAdd={addSuggestion} onIgnore={ignoreContainer} />
+              <Suggestions
+                config={draft}
+                onAdd={addSuggestion}
+                onIgnore={ignoreContainer}
+                onAddWidget={addWidget}
+              />
             )}
             <Groups
               config={config}

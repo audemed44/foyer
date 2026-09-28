@@ -3,7 +3,7 @@ import type {
   ConfigResponse,
   DockerContainer,
   StatusMap,
-  Suggestion,
+  DiscoverResponse,
   SystemStats,
 } from "./types";
 
@@ -45,7 +45,9 @@ export const api = {
   widget: <T>(id: string) => request<T>(`/api/widgets/${encodeURIComponent(id)}`),
   icons: () => request<string[]>("/api/icons"),
   containers: () => request<DockerContainer[]>("/api/containers"),
-  discover: () => request<Suggestion[]>("/api/discover"),
+  discover: () => request<DiscoverResponse>("/api/discover"),
+  widgetImage: (serviceId: string, path: string) =>
+    `/api/widgets/${encodeURIComponent(serviceId)}/image?path=${encodeURIComponent(path)}`,
   logsUrl: (name: string, tail = 500) =>
     `/api/containers/${encodeURIComponent(name)}/logs?tail=${tail}`,
 };

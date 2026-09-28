@@ -43,6 +43,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/status", s.getStatus)
 	mux.HandleFunc("GET /api/system", s.getSystem)
 	mux.HandleFunc("GET /api/widgets/{id}", s.getWidget)
+	mux.HandleFunc("GET /api/widgets/{id}/image", s.getWidgetImage)
 	mux.HandleFunc("GET /api/icons", s.listIcons)
 	mux.HandleFunc("GET /api/containers", s.listContainers)
 	mux.HandleFunc("GET /api/discover", s.discoverServices)
@@ -206,4 +207,16 @@ func securityHeaders(next http.Handler) http.Handler {
 		h.Set("X-Frame-Options", "SAMEORIGIN")
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (s *Server) getWidgetImage(w http.ResponseWriter, r *http.Request) {
+	svc := s.store.Config().Service(r.PathValue("id"))
+	if svc == nil || svc.Widget == nil {
+		writeError(w, http.StatusNotFound, "no such widget")
+		return
+	}
+	if err := widgets.ProxyImage(r.Context(), svc.Widget, r.URL.Query().Get("path"), w); err != nil {
+		// Headers may already be sent if the copy failed midway; then this is a no-op.
+		writeError(w, http.StatusBadGateway, err.Error())
+	}
 }
