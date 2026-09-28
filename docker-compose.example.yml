@@ -1,0 +1,24 @@
+services:
+  foyer:
+    image: ghcr.io/audemed44/foyer:latest
+    container_name: foyer
+    restart: unless-stopped
+    # Match the owner of ./foyer. group_add is the host's docker group id
+    # (`stat -c %g /var/run/docker.sock`), needed to read container state.
+    user: "1000:1000"
+    group_add:
+      - "111"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - TZ=${TZ}
+      # Enables edit mode. Leave unset for a read-only dashboard.
+      - FOYER_PASSWORD=${FOYER_PASSWORD}
+    volumes:
+      - ./foyer:/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Optional, first start only: imports an existing gethomepage.dev
+      # setup (config, icons, images) when ./foyer/foyer.yaml doesn't exist.
+      # - ./homepage:/homepage:ro
+    ports:
+      - "3030:8080"
