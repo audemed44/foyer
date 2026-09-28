@@ -37,6 +37,4 @@ export const api = {
   system: () => request<SystemStats>("/api/system"),
   widget: <T>(id: string) => request<T>(`/api/widgets/${encodeURIComponent(id)}`),
   icons: () => request<string[]>("/api/icons"),
-  login: (password: string) => request<void>("/api/login", json("POST", { password })),
-  logout: () => request<void>("/api/logout", { method: "POST" }),
 };

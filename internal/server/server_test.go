@@ -8,13 +8,12 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
-	"time"
 
 	"github.com/audemed44/foyer/internal/config"
 	"github.com/audemed44/foyer/internal/monitor"
 )
 
-func setup(t *testing.T, password string) (http.Handler, *config.Store) {
+func setup(t *testing.T) (http.Handler, *config.Store) {
 	t.Helper()
 	dir := t.TempDir()
 	store := config.NewStore(filepath.Join(dir, "foyer.yaml"))
@@ -28,7 +27,7 @@ func setup(t *testing.T, password string) (http.Handler, *config.Store) {
 	}
 	mon := monitor.New(store, "", "/proc", "/sys")
 	web := fstest.MapFS{"index.html": {Data: []byte("<html>app</html>")}, "assets/a.js": {Data: []byte("js")}}
-	return New(store, mon, NewAuth(password), dir, web).Handler(), store
+	return New(store, mon, dir, web).Handler(), store
 }
 
 func do(h http.Handler, method, path, body string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
@@ -45,7 +44,7 @@ func do(h http.Handler, method, path, body string, cookies ...*http.Cookie) *htt
 }
 
 func TestPublicConfigHidesSecrets(t *testing.T) {
-	h, _ := setup(t, "pw")
+	h, _ := setup(t)
 	rec := do(h, "GET", "/api/config", "")
 	if rec.Code != 200 {
 		t.Fatal(rec.Code)
@@ -57,33 +56,20 @@ func TestPublicConfigHidesSecrets(t *testing.T) {
 		}
 	}
 	var resp configResponse
-	json.Unmarshal(rec.Body.Bytes(), &resp)
-	if !resp.CanEdit || resp.LoggedIn {
-		t.Fatalf("flags: %+v", resp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil || len(resp.WidgetTypes) == 0 {
+		t.Fatalf("response: %v %+v", err, resp)
 	}
 }
 
-func TestEditingNeedsLogin(t *testing.T) {
-	h, store := setup(t, "pw")
-	if rec := do(h, "GET", "/api/config/edit", ""); rec.Code != 401 {
-		t.Fatalf("edit without login: %d", rec.Code)
-	}
-	if rec := do(h, "POST", "/api/login", `{"password":"nope"}`); rec.Code != 401 {
-		t.Fatalf("bad password: %d", rec.Code)
-	}
-	rec := do(h, "POST", "/api/login", `{"password":"pw"}`)
-	if rec.Code != 204 {
-		t.Fatalf("login: %d", rec.Code)
-	}
-	cookie := rec.Result().Cookies()[0]
-
-	rec = do(h, "GET", "/api/config/edit", "", cookie)
+func TestEditRoundTripKeepsSecrets(t *testing.T) {
+	h, store := setup(t)
+	rec := do(h, "GET", "/api/config/edit", "")
 	if rec.Code != 200 || strings.Contains(rec.Body.String(), "s3cret") || !strings.Contains(rec.Body.String(), config.SecretMask) {
 		t.Fatalf("editable config: %d %s", rec.Code, rec.Body)
 	}
 
 	edited := strings.Replace(rec.Body.String(), `"title":"Foyer"`, `"title":"Mine"`, 1)
-	rec = do(h, "PUT", "/api/config", edited, cookie)
+	rec = do(h, "PUT", "/api/config", edited)
 	if rec.Code != 200 {
 		t.Fatalf("save: %d %s", rec.Code, rec.Body)
 	}
@@ -93,52 +79,20 @@ func TestEditingNeedsLogin(t *testing.T) {
 	}
 
 	bad := strings.Replace(edited, `"accent":"#2563ff"`, `"accent":"red"`, 1)
-	if rec := do(h, "PUT", "/api/config", bad, cookie); rec.Code != 422 {
+	if rec := do(h, "PUT", "/api/config", bad); rec.Code != 422 {
 		t.Fatalf("invalid config: %d", rec.Code)
 	}
-}
-
-func TestEditingDisabledWithoutPassword(t *testing.T) {
-	h, _ := setup(t, "")
-	if rec := do(h, "POST", "/api/login", `{"password":""}`); rec.Code != 403 {
-		t.Fatalf("login: %d", rec.Code)
-	}
-	if rec := do(h, "PUT", "/api/config", `{}`); rec.Code != 403 {
-		t.Fatalf("save: %d", rec.Code)
-	}
-}
-
-func TestSessionExpiryAndTampering(t *testing.T) {
-	a := NewAuth("pw")
-	req := httptest.NewRequest("GET", "/", nil)
-	req.AddCookie(&http.Cookie{Name: cookieName, Value: a.sign(time.Now().Add(time.Hour).Unix())})
-	if !a.Valid(req) {
-		t.Fatal("fresh session should be valid")
-	}
-	for _, v := range []string{a.sign(time.Now().Add(-time.Hour).Unix()), "9999999999.deadbeef", "garbage"} {
-		req := httptest.NewRequest("GET", "/", nil)
-		req.AddCookie(&http.Cookie{Name: cookieName, Value: v})
-		if a.Valid(req) {
-			t.Fatalf("%q should be rejected", v)
-		}
-	}
-	if NewAuth("other").Valid(req) {
-		t.Fatal("a password change should invalidate sessions")
-	}
-}
-
-func TestLoginLockout(t *testing.T) {
-	h, _ := setup(t, "pw")
-	for range 5 {
-		do(h, "POST", "/api/login", `{"password":"x"}`)
-	}
-	if rec := do(h, "POST", "/api/login", `{"password":"pw"}`); rec.Code != 429 {
-		t.Fatalf("expected lockout, got %d", rec.Code)
+	req := httptest.NewRequest("PUT", "/api/config", strings.NewReader(edited))
+	req.Header.Set("Content-Type", "text/plain")
+	res := httptest.NewRecorder()
+	h.ServeHTTP(res, req)
+	if res.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("non-JSON save: %d", res.Code)
 	}
 }
 
 func TestSPAFallbackAndWidget404(t *testing.T) {
-	h, _ := setup(t, "")
+	h, _ := setup(t)
 	if rec := do(h, "GET", "/some/route", ""); !strings.Contains(rec.Body.String(), "app") {
 		t.Fatal("unknown routes should serve index.html")
 	}

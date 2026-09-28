@@ -7,39 +7,6 @@ import { Dialog, Field, Segmented, Select, TextInput, Toggle } from "./ui";
 
 export const SECRET_MASK = "__foyer_secret__";
 
-// ── Login ────────────────────────────────────────────────────────────────
-
-export function LoginDialog(props: { onClose: () => void; onDone: () => void }) {
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const submit = async (e: Event) => {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      await api.login(password);
-      props.onDone();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign in failed");
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <Dialog title="Edit dashboard" onClose={props.onClose}>
-      <form onSubmit={submit} class="stack">
-        <Field label="Password" hint="The FOYER_PASSWORD set on the container.">
-          <TextInput type="password" value={password} onChange={setPassword} autofocus />
-        </Field>
-        {error && <div class="form-error">{error}</div>}
-        <button class="btn btn-primary" disabled={busy || !password}>
-          Sign in
-        </button>
-      </form>
-    </Dialog>
-  );
-}
-
 // ── Service ──────────────────────────────────────────────────────────────
 
 type WidgetField = {

@@ -22,14 +22,13 @@ type Server struct {
 	store     *config.Store
 	monitor   *monitor.Monitor
 	widgets   *widgets.Service
-	auth      *Auth
 	assetsDir string // holds icons/ and images/
 	web       fs.FS
 }
 
-func New(store *config.Store, mon *monitor.Monitor, auth *Auth, assetsDir string, web fs.FS) *Server {
+func New(store *config.Store, mon *monitor.Monitor, assetsDir string, web fs.FS) *Server {
 	return &Server{
-		store: store, monitor: mon, widgets: widgets.NewService(), auth: auth,
+		store: store, monitor: mon, widgets: widgets.NewService(),
 		assetsDir: assetsDir, web: web,
 	}
 }
@@ -37,14 +36,12 @@ func New(store *config.Store, mon *monitor.Monitor, auth *Auth, assetsDir string
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/config", s.getConfig)
-	mux.HandleFunc("GET /api/config/edit", s.auth.Require(s.getEditableConfig))
-	mux.HandleFunc("PUT /api/config", s.auth.Require(s.putConfig))
+	mux.HandleFunc("GET /api/config/edit", s.getEditableConfig)
+	mux.HandleFunc("PUT /api/config", s.putConfig)
 	mux.HandleFunc("GET /api/status", s.getStatus)
 	mux.HandleFunc("GET /api/system", s.getSystem)
 	mux.HandleFunc("GET /api/widgets/{id}", s.getWidget)
-	mux.HandleFunc("GET /api/icons", s.auth.Require(s.listIcons))
-	mux.HandleFunc("POST /api/login", s.auth.Login)
-	mux.HandleFunc("POST /api/logout", s.auth.Logout)
+	mux.HandleFunc("GET /api/icons", s.listIcons)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
@@ -70,15 +67,13 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 type configResponse struct {
 	Config      config.Config `json:"config"`
 	Error       string        `json:"error,omitempty"`
-	CanEdit     bool          `json:"can_edit"`  // a password is set
-	LoggedIn    bool          `json:"logged_in"` // this browser may edit
 	WidgetTypes []string      `json:"widget_types"`
 }
 
-func (s *Server) getConfig(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getConfig(w http.ResponseWriter, _ *http.Request) {
 	cfg, err := s.store.Get()
 	resp := configResponse{
-		Config: cfg.Public(), CanEdit: s.auth.Enabled(), LoggedIn: s.auth.Valid(r),
+		Config:      cfg.Public(),
 		WidgetTypes: widgets.Types(),
 	}
 	if err != nil {
