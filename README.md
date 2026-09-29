@@ -10,7 +10,8 @@ Preact frontend, **~7 MB of RAM** at idle, in an 18 MB image.
   uptime)
 - One search box for everything: type to filter your services and press Enter
   to open one, or search the web when nothing matches. Press `/` to focus it.
-- Widgets for Uptime Kuma, Speedtest Tracker and iCal calendars, plus
+- Widgets for Uptime Kuma, Speedtest Tracker, iCal calendars, Kopia
+  backups, Syncthing, Nginx Proxy Manager and Komodo, plus
   **app widgets**: any app can describe its own card in the
   [Foyer widget format](#app-widgets) (Shelfloom does)
 - Customise it from the browser: drag services around, edit groups, change the
@@ -198,6 +199,32 @@ groups:
       - name: Calendar
         widget: { type: calendar, url: "https://example.com/cal.ics", days: 30, max_events: 8 }
 
+      - name: Kopia
+        widget:
+          type: kopia
+          url: http://host.docker.internal:51515   # `kopia server start` address
+          username: admin                          # --server-username
+          password: ${KOPIA_SERVER_PASSWORD}
+          stale_hours: 48                          # flag sources with no snapshot this long
+
+      - name: Syncthing
+        widget: { type: syncthing, url: "http://syncthing:8384", key: "${SYNCTHING_API_KEY}" }
+
+      - name: Nginx Proxy Manager
+        widget:
+          type: npm
+          url: http://npm:81                       # the admin port
+          email: admin@example.com
+          password: ${NPM_PASSWORD}
+          warn_days: 14                            # certificate expiry warning
+
+      - name: Komodo
+        widget:
+          type: komodo
+          url: http://host.docker.internal:9120
+          key: ${KOMODO_API_KEY}
+          secret: ${KOMODO_API_SECRET}
+
 bookmarks:
   - name: Dev
     links:
@@ -205,6 +232,24 @@ bookmarks:
 
 ignored_containers: [watchtower]   # never suggested in edit mode
 ```
+
+### Infrastructure widgets
+
+- **Kopia** shows when each snapshot source was last backed up, its size, and
+  flags sources that are stale (no snapshot within `stale_hours`, or a
+  scheduled snapshot that is over an hour late), that have never been backed
+  up, or whose last snapshot had failed files. It talks to the same API as
+  Kopia's web UI, using the server's username and password.
+- **Syncthing** shows folders (up to date, syncing, errors) and which devices
+  are online. The API key is under *Settings → General* in Syncthing.
+- **Nginx Proxy Manager** shows proxy hosts and certificates, soonest expiry
+  first, and hosts whose nginx config was rejected. It logs in with an NPM
+  user; a user that can only view hosts and certificates is enough.
+- **Komodo** shows stacks (problems first), image updates Komodo has found,
+  servers, and recent deploys. Give it a read-only service user rather than
+  your own account: in Komodo, open *Settings → Users*, create a **service
+  user** (e.g. `foyer`), give it **Read** on Stacks, Servers and
+  Deployments, and create an API key for it.
 
 ## App widgets
 
