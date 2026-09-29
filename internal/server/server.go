@@ -12,7 +12,9 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
+	"github.com/audemed44/foyer/internal/alerts"
 	"github.com/audemed44/foyer/internal/config"
 	"github.com/audemed44/foyer/internal/docker"
 	"github.com/audemed44/foyer/internal/drop"
@@ -21,19 +23,24 @@ import (
 )
 
 type Server struct {
-	store     *config.Store
-	monitor   *monitor.Monitor
-	docker    *docker.Client // nil without a Docker socket
-	widgets   *widgets.Service
-	drop      *drop.Store
-	assetsDir string // holds icons/ and images/
-	web       fs.FS
+	store   *config.Store
+	monitor *monitor.Monitor
+	docker  *docker.Client // nil without a Docker socket
+	widgets *widgets.Service
+	drop    *drop.Store
+	alerts  *alerts.Engine
+	// lastIntegrations is when CheckAlerts last looked at Kopia, Syncthing
+	// and NPM; only CheckAlerts (run by the monitor loop) touches it.
+	lastIntegrations time.Time
+	assetsDir        string // holds icons/ and images/
+	web              fs.FS
 }
 
 func New(store *config.Store, mon *monitor.Monitor, dock *docker.Client, assetsDir string, web fs.FS) *Server {
 	return &Server{
 		store: store, monitor: mon, widgets: widgets.NewService(), docker: dock,
 		drop:      drop.NewStore(filepath.Join(assetsDir, "drop"), dropLimit()),
+		alerts:    alerts.New(filepath.Join(assetsDir, "alerts.json")),
 		assetsDir: assetsDir, web: web,
 	}
 }
@@ -54,6 +61,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/containers", s.listContainers)
 	mux.HandleFunc("GET /api/discover", s.discoverServices)
 	mux.HandleFunc("GET /api/topology", s.getTopology)
+	mux.HandleFunc("GET /api/alerts", s.getAlerts)
+	mux.HandleFunc("POST /api/alerts/test", s.testAlert)
 	mux.HandleFunc("GET /api/containers/{name}/logs", s.containerLogs)
 	mux.HandleFunc("GET /api/drop", s.listDrop)
 	mux.HandleFunc("POST /api/drop", s.postDrop)

@@ -1,4 +1,6 @@
 import type {
+  Alerts,
+  AlertsResponse,
   Config,
   ConfigResponse,
   DockerContainer,
@@ -55,6 +57,9 @@ export const api = {
   logsUrl: (name: string, tail = 500) =>
     `/api/containers/${encodeURIComponent(name)}/logs?tail=${tail}`,
   topology: () => request<Topology>("/api/topology"),
+  alerts: () => request<AlertsResponse>("/api/alerts"),
+  testAlert: (alerts: Alerts) =>
+    request<{ message: string }>("/api/alerts/test", json("POST", alerts)),
   drop: () => request<DropResponse>("/api/drop"),
   dropTargets: () => request<DropTarget[]>("/api/drop/targets"),
   deleteDrop: (id: string) =>

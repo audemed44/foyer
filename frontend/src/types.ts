@@ -62,7 +62,28 @@ export type Config = {
   groups: Group[];
   bookmarks: BookmarkGroup[];
   ignored_containers: string[];
+  alerts: Alerts;
 };
+
+export type Alerts = {
+  apprise_url: string;
+  tag: string;
+  down_after: number;
+  services: boolean;
+  containers: boolean;
+  backups: boolean;
+  sync: boolean;
+  certificates: boolean;
+};
+
+export type AlertEvent = {
+  at: string;
+  level: "failure" | "warning" | "success" | "info";
+  title: string;
+  body?: string;
+  error?: string;
+};
+export type AlertsResponse = { enabled: boolean; open: AlertEvent[]; history: AlertEvent[] };
 
 export type ConfigResponse = {
   config: Config;

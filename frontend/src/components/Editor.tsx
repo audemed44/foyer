@@ -1,7 +1,8 @@
 import { Plus, Trash2 } from "lucide-preact";
 import { useEffect, useState } from "preact/hooks";
 import { api } from "../api";
-import type { Config, Group, Service, Theme, Widget } from "../types";
+import { timeAgo } from "../lib";
+import type { Alerts, AlertsResponse, Config, Group, Service, Theme, Widget } from "../types";
 import { Icon } from "./Icon";
 import { Dialog, Field, Segmented, Select, TextInput, Toggle } from "./ui";
 
@@ -315,7 +316,7 @@ export function SettingsDialog(props: {
   onClose: () => void;
 }) {
   const { config: c, onChange } = props;
-  const [tab, setTab] = useState<"general" | "look" | "header" | "bookmarks">("look");
+  const [tab, setTab] = useState<"general" | "look" | "header" | "bookmarks" | "alerts">("look");
   const theme = (patch: Partial<Theme>) => onChange({ ...c, theme: { ...c.theme, ...patch } });
   const header = (patch: Partial<Config["header"]>) =>
     onChange({ ...c, header: { ...c.header, ...patch } });
@@ -333,6 +334,7 @@ export function SettingsDialog(props: {
           ["general", "General"],
           ["header", "Header"],
           ["bookmarks", "Bookmarks"],
+          ["alerts", "Alerts"],
         ]}
         onChange={setTab}
       />
@@ -568,6 +570,12 @@ export function SettingsDialog(props: {
       )}
 
       {tab === "bookmarks" && <BookmarksEditor config={c} onChange={onChange} />}
+      {tab === "alerts" && (
+        <AlertsEditor
+          alerts={c.alerts}
+          onChange={(patch) => onChange({ ...c, alerts: { ...c.alerts, ...patch } })}
+        />
+      )}
     </Dialog>
   );
 }
@@ -637,6 +645,123 @@ function BookmarksEditor({ config, onChange }: { config: Config; onChange: (c: C
       <button class="btn" onClick={() => update([...groups, { name: "Links", links: [] }])}>
         <Plus size={14} /> Bookmark group
       </button>
+    </div>
+  );
+}
+
+function AlertsEditor(props: { alerts: Alerts; onChange: (patch: Partial<Alerts>) => void }) {
+  const { alerts: a, onChange } = props;
+  const [test, setTest] = useState<{ tone: string; text: string } | null>(null);
+  const [recent, setRecent] = useState<AlertsResponse | null>(null);
+  useEffect(() => {
+    api.alerts().then(setRecent, () => {});
+  }, []);
+
+  const sendTest = async () => {
+    setTest({ tone: "", text: "Sending…" });
+    try {
+      await api.testAlert(a);
+      setTest({ tone: "good", text: "Sent. Check your notifications." });
+    } catch (e) {
+      setTest({ tone: "bad", text: e instanceof Error ? e.message : String(e) });
+    }
+  };
+
+  const events = [...(recent?.history ?? [])].slice(0, 8);
+  return (
+    <div class="stack">
+      <Field
+        label="Apprise URL"
+        hint="An Apprise API notify URL for a saved config key, e.g. http://apprise-api:8000/notify/foyer. Empty turns alerts off."
+      >
+        <TextInput
+          value={a.apprise_url}
+          onChange={(v) => onChange({ apprise_url: v })}
+          placeholder="http://apprise-api:8000/notify/foyer"
+        />
+      </Field>
+      <div class="row">
+        <Field label="Tag" hint="Optional: only notify Apprise services with this tag.">
+          <TextInput value={a.tag} onChange={(v) => onChange({ tag: v })} />
+        </Field>
+        <Field
+          label="Down after (checks)"
+          hint="Failed checks in a row before a service counts as down."
+        >
+          <TextInput
+            type="number"
+            value={String(a.down_after)}
+            onChange={(v) => onChange({ down_after: Number(v) || 2 })}
+          />
+        </Field>
+      </div>
+      <div class="alert-test">
+        <button class="btn" onClick={sendTest} disabled={!a.apprise_url}>
+          Send a test notification
+        </button>
+        {test && <span class={`alert-test-result ${test.tone}`}>{test.text}</span>}
+      </div>
+
+      <div class="subhead">Notify me when</div>
+      <Toggle
+        label="A dashboard service goes down or turns unhealthy"
+        checked={a.services}
+        onChange={(v) => onChange({ services: v })}
+      />
+      <Toggle
+        label="Any other container crashes, restarts in a loop or turns unhealthy"
+        checked={a.containers}
+        onChange={(v) => onChange({ containers: v })}
+      />
+      <Toggle
+        label="A Kopia backup is overdue or skipped files"
+        checked={a.backups}
+        onChange={(v) => onChange({ backups: v })}
+      />
+      <Toggle
+        label="A Syncthing folder has errors"
+        checked={a.sync}
+        onChange={(v) => onChange({ sync: v })}
+      />
+      <Toggle
+        label="An NPM certificate is close to expiry"
+        checked={a.certificates}
+        onChange={(v) => onChange({ certificates: v })}
+      />
+      <p class="field-hint">
+        You get one message when something goes wrong and one when it recovers. Kopia, Syncthing and
+        NPM are checked every 5 minutes through their widgets.
+      </p>
+
+      {recent && (recent.open.length > 0 || events.length > 0) && (
+        <>
+          <div class="subhead">Recent</div>
+          <ul class="w-list alert-history">
+            {recent.open.map((e, i) => (
+              <li key={`o${i}`}>
+                <span class={`dot ${e.level === "failure" ? "bad" : "warn"}`} />
+                <span class="w-row-text">
+                  <span class="w-row-name">{e.title}</span>
+                  <span class="w-row-sub">ongoing</span>
+                </span>
+                <span class="w-row-meta">{timeAgo(new Date(e.at))}</span>
+              </li>
+            ))}
+            {events.map((e, i) => (
+              <li key={i}>
+                <span
+                  class={`dot ${e.level === "success" ? "good" : e.level === "failure" ? "bad" : "warn"}`}
+                />
+                <span class="w-row-text">
+                  <span class="w-row-name">{e.title}</span>
+                  {e.error && <span class="w-row-sub bad">Not delivered: {e.error}</span>}
+                </span>
+                <span class="w-row-meta">{timeAgo(new Date(e.at))}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }

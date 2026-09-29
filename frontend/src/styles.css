@@ -3015,3 +3015,25 @@ input[type="range"] {
     display: none;
   }
 }
+
+/* ── Alerts settings ────────────────────────────────────────────────────── */
+
+.alert-test {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.alert-test-result {
+  font-size: 13px;
+  color: var(--fg-2);
+}
+.alert-test-result.good {
+  color: var(--good);
+}
+.alert-test-result.bad {
+  color: var(--bad);
+}
+.alert-history .dot.good {
+  background: var(--good);
+}

@@ -44,6 +44,10 @@ type Monitor struct {
 	proc, sys string
 	wake      chan struct{}
 
+	// AfterCheck, when set, runs after each round of service checks (alerts
+	// use it, so every check counts exactly once).
+	AfterCheck func(ctx context.Context)
+
 	mu         sync.RWMutex
 	pings      map[string]Ping // by ping URL, so renames don't lose results
 	containers map[string]Container
@@ -163,6 +167,9 @@ func (m *Monitor) checkServices(ctx context.Context) {
 		m.containers = containers
 	}
 	m.mu.Unlock()
+	if m.AfterCheck != nil {
+		m.AfterCheck(ctx)
+	}
 }
 
 func (m *Monitor) fetchContainers(ctx context.Context) map[string]Container {
