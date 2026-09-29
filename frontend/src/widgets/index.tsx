@@ -1,10 +1,20 @@
 import { ArrowDown, ArrowUp, Timer } from "lucide-preact";
-import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import { api } from "../api";
 import { usePoll, useNow } from "../hooks";
 import { timeAgo } from "../lib";
 import type { Service } from "../types";
+import { Figure } from "./figure";
+import {
+  Komodo,
+  Kopia,
+  NginxProxyManager,
+  Syncthing,
+  type KomodoData,
+  type KopiaData,
+  type NPMData,
+  type SyncthingData,
+} from "./infra";
 
 export function WidgetBody({ service }: { service: Service }) {
   const { data, error } = usePoll<unknown>(() => api.widget(service.id), 60000, [service.id]);
@@ -21,6 +31,14 @@ export function WidgetBody({ service }: { service: Service }) {
       return <Calendar data={data as CalendarData} />;
     case "app":
       return <AppWidget data={data as AppData} service={service} />;
+    case "kopia":
+      return <Kopia data={data as KopiaData} />;
+    case "syncthing":
+      return <Syncthing data={data as SyncthingData} />;
+    case "npm":
+      return <NginxProxyManager data={data as NPMData} />;
+    case "komodo":
+      return <Komodo data={data as KomodoData} />;
   }
   return <div class="widget widget-error">Unknown widget “{type}”</div>;
 }
@@ -163,29 +181,6 @@ function Calendar({ data }: { data: CalendarData }) {
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-function Figure(props: {
-  value: string;
-  label: string;
-  unit?: string;
-  tone?: string;
-  caption?: string;
-  icon?: ComponentChildren;
-}) {
-  return (
-    <div class={`figure ${props.tone ?? ""}`}>
-      <p class="figure-value">
-        {props.value}
-        {props.unit && <span class="figure-unit">{props.unit}</span>}
-      </p>
-      <p class="eyebrow figure-label">
-        {props.icon}
-        {props.label}
-      </p>
-      {props.caption && <p class="figure-caption">{props.caption}</p>}
     </div>
   );
 }

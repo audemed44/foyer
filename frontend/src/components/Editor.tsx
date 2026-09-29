@@ -50,6 +50,46 @@ const WIDGET_FIELDS: Record<string, WidgetField[]> = {
     { key: "days", label: "Days ahead", number: true },
     { key: "max_events", label: "Max events", number: true },
   ],
+  kopia: [
+    {
+      key: "url",
+      label: "Kopia server URL",
+      hint: "The address of `kopia server start`, e.g. http://host.docker.internal:51515",
+    },
+    { key: "username", label: "Server username", hint: "--server-username" },
+    { key: "password", label: "Server password", secret: true },
+    {
+      key: "stale_hours",
+      label: "Warn after (hours)",
+      number: true,
+      hint: "A source with no snapshot for this long is flagged. Default 48.",
+    },
+  ],
+  syncthing: [
+    { key: "url", label: "Syncthing URL", hint: "The GUI address, e.g. http://syncthing:8384" },
+    { key: "key", label: "API key", secret: true, hint: "Settings → General → API Key." },
+  ],
+  npm: [
+    { key: "url", label: "NPM admin URL", hint: "The admin port, e.g. http://npm:81" },
+    { key: "email", label: "Email" },
+    { key: "password", label: "Password", secret: true },
+    {
+      key: "warn_days",
+      label: "Warn before expiry (days)",
+      number: true,
+      hint: "Default 14.",
+    },
+  ],
+  komodo: [
+    { key: "url", label: "Komodo URL", hint: "e.g. http://host.docker.internal:9120" },
+    {
+      key: "key",
+      label: "API key",
+      secret: true,
+      hint: "From a service user with read access (see the README).",
+    },
+    { key: "secret", label: "API secret", secret: true },
+  ],
 };
 
 const WIDGET_LABELS: Record<string, string> = {
@@ -57,6 +97,10 @@ const WIDGET_LABELS: Record<string, string> = {
   uptimekuma: "Uptime Kuma",
   speedtest: "Speedtest Tracker",
   calendar: "Calendar (iCal)",
+  kopia: "Kopia backups",
+  syncthing: "Syncthing",
+  npm: "Nginx Proxy Manager",
+  komodo: "Komodo",
 };
 
 export function ServiceDialog(props: {

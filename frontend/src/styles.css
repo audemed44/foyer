@@ -2607,3 +2607,103 @@ input[type="range"] {
     display: none;
   }
 }
+
+/* ── Infrastructure widgets (Kopia, Syncthing, NPM, Komodo) ─────────────── */
+
+.w-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.w-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line-soft);
+  font-size: 13.5px;
+}
+.w-list .dot {
+  width: 6px;
+  height: 6px;
+  box-shadow: none;
+  animation: none;
+}
+.w-list .dot.accent {
+  background: var(--accent);
+}
+.w-row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.w-row-name,
+.w-row-sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.w-row-name {
+  font-weight: 500;
+}
+.w-row-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--fg-3);
+}
+.w-row-sub.bad {
+  color: var(--bad);
+}
+.w-row-sub.warn {
+  color: var(--warn);
+}
+.w-row-meta {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.w-list li.w-more {
+  font-size: 12px;
+  color: var(--fg-3);
+}
+.w-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px solid var(--accent);
+  color: var(--accent-hi);
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.w-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.w-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 500;
+}
+.w-chip .dot {
+  width: 6px;
+  height: 6px;
+  box-shadow: none;
+}
+.w-chip-meta {
+  color: var(--fg-3);
+  font-weight: 400;
+}
+.w-recent .eyebrow {
+  margin-bottom: 6px;
+}

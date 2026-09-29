@@ -3,7 +3,9 @@
 package widgets
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,10 +28,16 @@ var fetchers = map[string]fetcher{
 	"speedtest":  speedtest,
 	"calendar":   calendar,
 	"app":        app,
+	"kopia":      kopia,
+	"syncthing":  syncthing,
+	"komodo":     komodo,
+	"npm":        npm,
 }
 
 // Types lists the supported widget types, for the editor.
-func Types() []string { return []string{"app", "uptimekuma", "speedtest", "calendar"} }
+func Types() []string {
+	return []string{"app", "uptimekuma", "speedtest", "calendar", "kopia", "syncthing", "komodo", "npm"}
+}
 
 var ErrUnknownType = errors.New("unknown widget type")
 
@@ -85,11 +93,31 @@ var client = &http.Client{Timeout: 10 * time.Second}
 
 // getJSON fetches url into out. headers are optional name/value pairs.
 func getJSON(ctx context.Context, url string, out any, headers ...string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	return doJSON(ctx, http.MethodGet, url, nil, out, headers...)
+}
+
+// postJSON sends body as JSON and decodes the answer into out.
+func postJSON(ctx context.Context, url string, body, out any, headers ...string) error {
+	return doJSON(ctx, http.MethodPost, url, body, out, headers...)
+}
+
+func doJSON(ctx context.Context, method, url string, body, out any, headers ...string) error {
+	var reader io.Reader
+	if body != nil {
+		raw, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		reader = bytes.NewReader(raw)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, url, reader)
 	if err != nil {
 		return fmt.Errorf("invalid url")
 	}
 	req.Header.Set("Accept", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	for i := 0; i+1 < len(headers); i += 2 {
 		req.Header.Set(headers[i], headers[i+1])
 	}
@@ -121,4 +149,8 @@ func required(w config.Widget, keys ...string) error {
 
 func join(base, path string) string {
 	return strings.TrimRight(base, "/") + path
+}
+
+func basicAuth(user, pass string) string {
+	return base64.StdEncoding.EncodeToString([]byte(user + ":" + pass))
 }
