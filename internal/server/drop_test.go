@@ -125,6 +125,7 @@ func TestSendToAcceptingApp(t *testing.T) {
 			b, _ := io.ReadAll(f)
 			got.field, got.name, got.body = "file", hdr.Filename, string(b)
 			w.WriteHeader(http.StatusCreated)
+			io.WriteString(w, `{"message":"Added “Dune”","url":"/books/42"}`)
 		}
 	}))
 	defer app.Close()
@@ -133,7 +134,8 @@ func TestSendToAcceptingApp(t *testing.T) {
 	store := config.NewStore(filepath.Join(dir, "foyer.yaml"))
 	cfg := config.Default()
 	cfg.Groups = []config.Group{{Name: "Books", Services: []config.Service{{
-		Name: "Library", Widget: config.Widget{"type": "app", "url": app.URL + "/api/foyer/widget"},
+		Name: "Library", URL: "https://books.example.com",
+		Widget: config.Widget{"type": "app", "url": app.URL + "/api/foyer/widget"},
 	}}}}
 	store.WriteInitial(cfg)
 	h := New(store, monitor.New(store, nil, "/proc", "/sys"), nil, dir, nil).Handler()
@@ -154,7 +156,10 @@ func TestSendToAcceptingApp(t *testing.T) {
 	send := func(id string) *httptest.ResponseRecorder {
 		return post(h, "/api/drop/"+id+"/send", strings.NewReader(`{"service":"library"}`), "application/json")
 	}
-	if rec := send(byName["Dune.epub"]); rec.Code != 200 {
+	rec := send(byName["Dune.epub"])
+	var answer map[string]string
+	json.Unmarshal(rec.Body.Bytes(), &answer)
+	if rec.Code != 200 || answer["message"] != "Added “Dune”" || answer["url"] != "https://books.example.com/books/42" {
 		t.Fatalf("send: %d %s", rec.Code, rec.Body)
 	}
 	if got.name != "Dune.epub" || got.body != "epub bytes" {

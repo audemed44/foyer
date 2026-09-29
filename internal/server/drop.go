@@ -261,11 +261,20 @@ func (s *Server) sendDrop(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, svc.Name+" doesn't take this kind of file")
 		return
 	}
-	if err := widgets.SendFile(r.Context(), svc.Widget, rule, it.File.Name, it.File.Type, f); err != nil {
+	sent, err := widgets.SendFile(r.Context(), svc.Widget, rule, it.File.Name, it.File.Type, f)
+	if err != nil {
 		writeError(w, http.StatusBadGateway, svc.Name+": "+err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"message": "Sent to " + svc.Name})
+	resp := map[string]string{"message": sent.Message}
+	if resp["message"] == "" {
+		resp["message"] = "Sent to " + svc.Name
+	}
+	// A relative link opens the app's public page, like widget item links.
+	if link := publicLink(sent.URL, svc.URL); link != "" {
+		resp["url"] = link
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // dropLimit is the largest file the inbox takes: FOYER_DROP_MAX_MB, default 512.
@@ -275,4 +284,20 @@ func dropLimit() int64 {
 		mb = 512
 	}
 	return int64(mb) << 20
+}
+
+// publicLink resolves an app's link against the service's public address.
+func publicLink(link, public string) string {
+	if link == "" || strings.HasPrefix(link, "http://") || strings.HasPrefix(link, "https://") {
+		return link
+	}
+	base, err := url.Parse(public)
+	if err != nil || base.Host == "" {
+		return ""
+	}
+	ref, err := url.Parse(link)
+	if err != nil {
+		return ""
+	}
+	return base.ResolveReference(ref).String()
 }

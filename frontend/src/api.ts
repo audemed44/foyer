@@ -65,7 +65,7 @@ export const api = {
   deleteDrop: (id: string) =>
     request<void>(`/api/drop/${encodeURIComponent(id)}`, { method: "DELETE" }),
   sendDrop: (id: string, service: string) =>
-    request<{ message: string }>(
+    request<{ message: string; url?: string }>(
       `/api/drop/${encodeURIComponent(id)}/send`,
       json("POST", { service }),
     ),

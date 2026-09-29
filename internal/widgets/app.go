@@ -263,17 +263,25 @@ func (a *AppAccepts) Accepts(name, contentType string) bool {
 	return false
 }
 
+// Sent is what an app may answer an upload with: a line to show, and a
+// link to what it made (a path relative to the app's public address, or a
+// full URL). Both are optional.
+type Sent struct {
+	Message string `json:"message"`
+	URL     string `json:"url"`
+}
+
 // SendFile uploads a file to an app, as described by its widget's accepts
 // rule. The request goes to the app's own address (from the widget URL),
 // never to one the widget data names.
-func SendFile(ctx context.Context, w config.Widget, a *AppAccepts, name, contentType string, body io.Reader) error {
+func SendFile(ctx context.Context, w config.Widget, a *AppAccepts, name, contentType string, body io.Reader) (Sent, error) {
 	base, err := url.Parse(config.ExpandEnv(w.String("url")))
 	if err != nil || base.Host == "" || !relativePath(a.URL) {
-		return fmt.Errorf("invalid upload address")
+		return Sent{}, fmt.Errorf("invalid upload address")
 	}
 	target, err := url.Parse(a.URL)
 	if err != nil {
-		return fmt.Errorf("invalid upload address")
+		return Sent{}, fmt.Errorf("invalid upload address")
 	}
 	dst := base.ResolveReference(target)
 	dst.Scheme, dst.Host, dst.User = base.Scheme, base.Host, nil
@@ -300,7 +308,7 @@ func SendFile(ctx context.Context, w config.Widget, a *AppAccepts, name, content
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, dst.String(), pr)
 	if err != nil {
 		pr.Close()
-		return err
+		return Sent{}, err
 	}
 	req.Header.Set("Content-Type", form.FormDataContentType())
 	req.Header.Set("Accept", "application/json")
@@ -310,13 +318,19 @@ func SendFile(ctx context.Context, w config.Widget, a *AppAccepts, name, content
 	resp, err := uploadClient.Do(req)
 	if err != nil {
 		pr.Close()
-		return fmt.Errorf("could not reach %s", dst.Host)
+		return Sent{}, fmt.Errorf("could not reach %s", dst.Host)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode < 300 {
-		return nil
+	if resp.StatusCode >= 300 {
+		return Sent{}, fmt.Errorf("%s", errorMessage(resp))
 	}
-	return fmt.Errorf("%s", errorMessage(resp))
+	var sent Sent
+	_ = json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&sent)
+	sent.Message = clip(sent.Message, 200)
+	if !safeLink(sent.URL) {
+		sent.URL = ""
+	}
+	return sent, nil
 }
 
 var (
