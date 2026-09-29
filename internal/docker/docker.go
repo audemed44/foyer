@@ -84,6 +84,11 @@ func (c *Client) getJSON(ctx context.Context, path string, query url.Values, out
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
+type PortMap struct {
+	Host      int `json:"host"`
+	Container int `json:"container"`
+}
+
 type Container struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
@@ -95,6 +100,8 @@ type Container struct {
 	Project string `json:"project,omitempty"` // compose project
 	// Ports are the container-side TCP ports, lowest first.
 	Ports []int `json:"ports"`
+	// Published maps TCP ports reachable on the host to container ports.
+	Published []PortMap `json:"published,omitempty"`
 	// Labels holds only the ones Foyer reads: foyer.*, homepage.* and the
 	// compose service name.
 	Labels map[string]string `json:"labels,omitempty"`
@@ -111,6 +118,7 @@ func (c *Client) List(ctx context.Context) ([]Container, error) {
 		Labels  map[string]string
 		Ports   []struct {
 			PrivatePort int
+			PublicPort  int
 			Type        string
 		}
 	}
@@ -124,12 +132,22 @@ func (c *Client) List(ctx context.Context) ([]Container, error) {
 			name = strings.TrimPrefix(it.Names[0], "/")
 		}
 		ports := []int{}
+		var published []PortMap
 		for _, p := range it.Ports {
-			if p.Type == "tcp" && !slices.Contains(ports, p.PrivatePort) {
+			if p.Type != "tcp" {
+				continue
+			}
+			if !slices.Contains(ports, p.PrivatePort) {
 				ports = append(ports, p.PrivatePort)
+			}
+			// Docker lists a binding once per address family.
+			pm := PortMap{Host: p.PublicPort, Container: p.PrivatePort}
+			if p.PublicPort > 0 && !slices.Contains(published, pm) {
+				published = append(published, pm)
 			}
 		}
 		sort.Ints(ports)
+		sort.Slice(published, func(i, j int) bool { return published[i].Host < published[j].Host })
 		labels := map[string]string{}
 		for k, v := range it.Labels {
 			if strings.HasPrefix(k, "foyer.") || strings.HasPrefix(k, "homepage.") ||
@@ -140,7 +158,7 @@ func (c *Client) List(ctx context.Context) ([]Container, error) {
 		out = append(out, Container{
 			ID: it.ID, Name: name, Image: it.Image, State: it.State, Status: it.Status,
 			Health: health(it.Status), Created: it.Created,
-			Project: it.Labels["com.docker.compose.project"], Ports: ports, Labels: labels,
+			Project: it.Labels["com.docker.compose.project"], Ports: ports, Published: published, Labels: labels,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
@@ -176,6 +194,65 @@ func (c *Client) Find(ctx context.Context, ref string) (Container, error) {
 		}
 	}
 	return Container{}, ErrNotFound
+}
+
+// ── Inspect ──────────────────────────────────────────────────────────────
+
+type Mount struct {
+	Type        string `json:"type"` // bind | volume | tmpfs
+	Source      string `json:"source"`
+	Destination string `json:"destination"`
+	Name        string `json:"name,omitempty"` // volume name
+	RW          bool   `json:"rw"`
+}
+
+// Details is the part of `docker inspect` Foyer uses: where a container's
+// data lives and which networks and names it answers to. The rest (notably
+// the environment, which often holds secrets) is never decoded.
+type Details struct {
+	Mounts   []Mount  `json:"mounts"`
+	Networks []string `json:"networks"`
+	// Aliases are the names other containers can reach it by.
+	Aliases []string `json:"aliases"`
+}
+
+// Inspect reads a container's mounts and networks. ct must come from List.
+func (c *Client) Inspect(ctx context.Context, ct Container) (Details, error) {
+	var raw struct {
+		Mounts []struct {
+			Type        string
+			Name        string
+			Source      string
+			Destination string
+			RW          bool
+		}
+		NetworkSettings struct {
+			Networks map[string]struct {
+				Aliases  []string
+				DNSNames []string
+			}
+		}
+	}
+	if err := c.getJSON(ctx, "/containers/"+ct.ID+"/json", nil, &raw); err != nil {
+		return Details{}, err
+	}
+	d := Details{Mounts: []Mount{}, Networks: []string{}, Aliases: []string{}}
+	for _, m := range raw.Mounts {
+		d.Mounts = append(d.Mounts, Mount{Type: m.Type, Source: m.Source, Destination: m.Destination, Name: m.Name, RW: m.RW})
+	}
+	sort.Slice(d.Mounts, func(i, j int) bool { return d.Mounts[i].Destination < d.Mounts[j].Destination })
+	short := ct.ID[:min(12, len(ct.ID))]
+	for name, n := range raw.NetworkSettings.Networks {
+		d.Networks = append(d.Networks, name)
+		for _, a := range append(n.Aliases, n.DNSNames...) {
+			if a != short && a != ct.ID && !slices.Contains(d.Aliases, a) {
+				d.Aliases = append(d.Aliases, a)
+			}
+		}
+	}
+	sort.Strings(d.Networks)
+	sort.Strings(d.Aliases)
+	return d, nil
 }
 
 // ── Stats ────────────────────────────────────────────────────────────────

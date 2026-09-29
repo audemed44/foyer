@@ -79,6 +79,12 @@ export function Suggestions(props: {
               <span class="suggest-text">
                 <span class="tile-name">{s.name}</span>
                 <span class="suggest-image">{s.image}</span>
+                {s.url && (
+                  <span class="suggest-image" title={s.url}>
+                    {s.url.replace(/^https?:\/\//, "")}
+                    {s.url_from_npm ? " · from NPM" : s.url_guessed ? " · guessed" : ""}
+                  </span>
+                )}
               </span>
               <button class="btn btn-primary suggest-add" onClick={() => props.onAdd(s)}>
                 <Plus size={14} /> Add

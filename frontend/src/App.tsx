@@ -1,4 +1,4 @@
-import { Boxes, FolderPlus, Inbox, LayoutGrid, Pencil, Settings2 } from "lucide-preact";
+import { Boxes, FolderPlus, Inbox, LayoutGrid, Network, Pencil, Settings2 } from "lucide-preact";
 import { useCallback, useEffect, useState } from "preact/hooks";
 import { api } from "./api";
 import { Bookmarks } from "./components/Bookmarks";
@@ -10,6 +10,7 @@ import { Header } from "./components/Header";
 import { LogViewer } from "./components/Logs";
 import { Search } from "./components/Search";
 import { Suggestions } from "./components/Suggestions";
+import { TopologyPage } from "./components/Topology";
 import { usePoll } from "./hooks";
 import { countStatus, newId } from "./lib";
 import { navigate, routeHref, useRoute } from "./router";
@@ -24,6 +25,13 @@ import type {
   Suggestion,
   Widget,
 } from "./types";
+
+const NAV = [
+  { page: "home", label: "Dashboard", icon: LayoutGrid },
+  { page: "containers", label: "Containers", icon: Boxes },
+  { page: "topology", label: "Topology", icon: Network },
+  { page: "drop", label: "Drop", icon: Inbox },
+] as const;
 
 type Modal =
   | { kind: "settings" }
@@ -237,27 +245,19 @@ export function App() {
             {config.title}
           </a>
           <span class="spacer" />
-          <a
-            class={`topnav-link ${route.page === "home" ? "on" : ""}`}
-            href={routeHref({ page: "home", logs: null })}
-          >
-            <LayoutGrid size={14} /> Dashboard
-          </a>
-          <a
-            class={`topnav-link ${route.page === "containers" ? "on" : ""}`}
-            href={routeHref({ page: "containers", logs: null })}
-          >
-            <Boxes size={14} /> Containers
-          </a>
-          <a
-            class={`topnav-link ${route.page === "drop" ? "on" : ""}`}
-            href={routeHref({ page: "drop", logs: null })}
-          >
-            <Inbox size={14} /> Drop
-          </a>
+          {NAV.map(({ page, label, icon: NavIcon }) => (
+            <a
+              key={page}
+              class={`topnav-link ${route.page === page ? "on" : ""}`}
+              href={routeHref({ page, logs: null })}
+              title={label}
+            >
+              <NavIcon size={14} /> <span class="topnav-label">{label}</span>
+            </a>
+          ))}
           {route.page === "home" && (
             <button class="topnav-link" onClick={startEditing} title="Edit dashboard">
-              <Pencil size={14} /> Edit
+              <Pencil size={14} /> <span class="topnav-label">Edit</span>
             </button>
           )}
         </nav>
@@ -274,6 +274,8 @@ export function App() {
           <ContainersPage onLogs={openLogs} />
         ) : route.page === "drop" && !draft ? (
           <DropPage />
+        ) : route.page === "topology" && !draft ? (
+          <TopologyPage onLogs={openLogs} />
         ) : (
           <>
             <Header config={config} status={status ?? null} />

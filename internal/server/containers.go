@@ -166,6 +166,14 @@ func (s *Server) discoverServices(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		resp.Containers = discover.Suggest(cfg, list)
+		// A proxy host in NPM beats a guessed link.
+		links := s.npmLinks(r.Context(), cfg, list)
+		for i := range resp.Containers {
+			c := &resp.Containers[i]
+			if link, ok := links[c.Container]; ok && (c.URL == "" || c.URLGuessed) {
+				c.URL, c.URLGuessed, c.URLFromNPM = link, false, true
+			}
+		}
 	}
 
 	var mu sync.Mutex

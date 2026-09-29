@@ -23,7 +23,9 @@ type Suggestion struct {
 	URL         string `json:"url,omitempty"`
 	// URLGuessed is set when URL follows the pattern of existing services
 	// (https://<name>.example.com) rather than coming from a label.
-	URLGuessed bool   `json:"url_guessed,omitempty"`
+	URLGuessed bool `json:"url_guessed,omitempty"`
+	// URLFromNPM is set when the link comes from an Nginx Proxy Manager host.
+	URLFromNPM bool   `json:"url_from_npm,omitempty"`
 	Ping       string `json:"ping,omitempty"`
 	Group      string `json:"group,omitempty"`
 	// Labelled means the container carries foyer.* or homepage.* labels.
