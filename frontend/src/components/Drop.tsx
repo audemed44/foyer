@@ -24,9 +24,7 @@ export function DropPage() {
   const { data, error } = usePoll<DropResponse>(api.drop, 10000, [version]);
   const { data: targets } = usePoll<DropTarget[]>(api.dropTargets, 120000);
   const [removed, setRemoved] = useState<Set<string>>(new Set());
-  const [notice, setNotice] = useState<{ tone: "good" | "bad"; text: string } | null>(() =>
-    shareError(),
-  );
+  const [notice, setNotice] = useState<Notice | null>(() => shareError());
   const refresh = () => setVersion((v) => v + 1);
 
   const items = (data?.items ?? []).filter((it) => !removed.has(it.id));
@@ -75,6 +73,11 @@ export function DropPage() {
       {notice && (
         <div class={`drop-notice ${notice.tone}`} role="status">
           <span>{notice.text}</span>
+          {notice.url && (
+            <a class="btn" href={notice.url} target="_blank" rel="noopener noreferrer">
+              Open <ArrowUpRight size={14} />
+            </a>
+          )}
           <button class="btn btn-ghost" onClick={() => setNotice(null)}>
             Dismiss
           </button>
@@ -120,8 +123,10 @@ export function DropPage() {
   );
 }
 
+type Notice = { tone: "good" | "bad"; text: string; url?: string };
+
 /** An error passed back by the share target (#/drop?error=…), shown once. */
-function shareError(): { tone: "bad"; text: string } | null {
+function shareError(): Notice | null {
   const query = window.location.hash.split("?")[1] ?? "";
   const error = new URLSearchParams(query).get("error");
   if (!error) return null;
@@ -298,7 +303,7 @@ function DropRow(props: {
   item: DropItem;
   targets: DropTarget[];
   onDelete: () => void;
-  onNotice: (n: { tone: "good" | "bad"; text: string }) => void;
+  onNotice: (n: Notice) => void;
 }) {
   const { item } = props;
   const now = useNow();
@@ -316,7 +321,7 @@ function DropRow(props: {
     setSending(target.service);
     try {
       const res = await api.sendDrop(item.id, target.service);
-      props.onNotice({ tone: "good", text: `${item.file?.name}: ${res.message}` });
+      props.onNotice({ tone: "good", text: res.message, url: res.url });
     } catch (e) {
       props.onNotice({ tone: "bad", text: e instanceof Error ? e.message : String(e) });
     } finally {

@@ -372,6 +372,9 @@ optional):
   extensions (`.epub`) or MIME types (`image/*`). Foyer POSTs the file as
   multipart form data, in the field `field` (default `file`), to `url` on the
   app's own address, with the widget's `key` as a bearer token if one is set.
+  The app may answer with `{"message": "Added “Dune”", "url": "/books/42"}`:
+  Drop shows the message, and an **Open** link to `url` (resolved against
+  the service's link, like item URLs).
 
 Foyer refreshes the widget every minute and caches it for 45 seconds.
 
