@@ -68,9 +68,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	app := server.New(store, mon, dock, configDir, dist)
+	app.Sweep()
 	srv := &http.Server{
 		Addr:              ":" + env("FOYER_PORT", "8080"),
-		Handler:           server.New(store, mon, dock, configDir, dist).Handler(),
+		Handler:           app.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

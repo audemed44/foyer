@@ -4,6 +4,9 @@ import type {
   DockerContainer,
   StatusMap,
   DiscoverResponse,
+  DropItem,
+  DropResponse,
+  DropTarget,
   SystemStats,
 } from "./types";
 
@@ -50,4 +53,34 @@ export const api = {
     `/api/widgets/${encodeURIComponent(serviceId)}/image?path=${encodeURIComponent(path)}`,
   logsUrl: (name: string, tail = 500) =>
     `/api/containers/${encodeURIComponent(name)}/logs?tail=${tail}`,
+  drop: () => request<DropResponse>("/api/drop"),
+  dropTargets: () => request<DropTarget[]>("/api/drop/targets"),
+  deleteDrop: (id: string) =>
+    request<void>(`/api/drop/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  sendDrop: (id: string, service: string) =>
+    request<{ message: string }>(
+      `/api/drop/${encodeURIComponent(id)}/send`,
+      json("POST", { service }),
+    ),
+  dropFileUrl: (id: string, download = false) =>
+    `/api/drop/${encodeURIComponent(id)}/file${download ? "?download=1" : ""}`,
 };
+
+/**
+ * Saves a note, link or files to Drop. Uses XHR rather than fetch for upload
+ * progress (0–1).
+ */
+export function uploadDrop(form: FormData, onProgress?: (p: number) => void): Promise<DropItem[]> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/drop");
+    xhr.responseType = "json";
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response as DropItem[]);
+      else reject(new ApiError(xhr.response?.error ?? `HTTP ${xhr.status}`, xhr.status));
+    };
+    xhr.onerror = () => reject(new ApiError("Upload failed — check your connection", 0));
+    xhr.send(form);
+  });
+}

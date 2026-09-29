@@ -129,3 +129,21 @@ export type Suggestion = {
 
 export type WidgetSuggestion = { service: string; name: string; widget: Widget };
 export type DiscoverResponse = { containers: Suggestion[]; widgets: WidgetSuggestion[] };
+
+export type DropItem = {
+  id: string;
+  kind: "text" | "link" | "file";
+  text?: string;
+  url?: string;
+  title?: string;
+  file?: { name: string; size: number; type: string };
+  created: number;
+};
+export type DropResponse = { items: DropItem[]; max_file: number; usage: number };
+export type DropTarget = {
+  service: string;
+  name: string;
+  icon?: string;
+  label: string;
+  types: string[];
+};

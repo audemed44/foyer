@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   countStatus,
+  dayLabel,
+  fileExt,
   groupSpan,
   iconUrl,
   matchScore,
   monogram,
   packGroups,
   searchServices,
+  targetAccepts,
   webSearchUrl,
 } from "./lib";
 import type { Config, Group } from "./types";
@@ -100,5 +103,31 @@ describe("countStatus", () => {
     const running = { container: { name: "a", state: "running", status: "Up" } };
     const exited = { container: { name: "b", state: "exited", status: "Exited" } };
     expect(countStatus([running, exited, {}, undefined])).toEqual({ up: 1, total: 2 });
+  });
+});
+
+describe("drop helpers", () => {
+  it("labels days", () => {
+    const now = new Date(2026, 8, 29, 10);
+    expect(dayLabel(new Date(2026, 8, 29, 1), now)).toBe("Today");
+    expect(dayLabel(new Date(2026, 8, 28, 23), now)).toBe("Yesterday");
+    expect(dayLabel(new Date(2026, 8, 20), now)).not.toMatch(/Today|Yesterday/);
+  });
+  it("reads extensions", () => {
+    expect(fileExt("Dune.epub")).toBe("EPUB");
+    expect(fileExt("archive.tar.gz")).toBe("GZ");
+    expect(fileExt("README")).toBe("");
+  });
+  it("matches accepts rules like the server", () => {
+    const t = {
+      service: "s",
+      name: "S",
+      label: "Add",
+      types: [".epub", "application/pdf", "image/*"],
+    };
+    expect(targetAccepts(t, "Dune.EPUB", "application/epub+zip")).toBe(true);
+    expect(targetAccepts(t, "paper", "application/pdf")).toBe(true);
+    expect(targetAccepts(t, "a.png", "image/png")).toBe(true);
+    expect(targetAccepts(t, "a.txt", "text/plain")).toBe(false);
   });
 });

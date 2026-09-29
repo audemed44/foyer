@@ -15,6 +15,7 @@ import (
 
 	"github.com/audemed44/foyer/internal/config"
 	"github.com/audemed44/foyer/internal/docker"
+	"github.com/audemed44/foyer/internal/drop"
 	"github.com/audemed44/foyer/internal/monitor"
 	"github.com/audemed44/foyer/internal/widgets"
 )
@@ -24,6 +25,7 @@ type Server struct {
 	monitor   *monitor.Monitor
 	docker    *docker.Client // nil without a Docker socket
 	widgets   *widgets.Service
+	drop      *drop.Store
 	assetsDir string // holds icons/ and images/
 	web       fs.FS
 }
@@ -31,9 +33,13 @@ type Server struct {
 func New(store *config.Store, mon *monitor.Monitor, dock *docker.Client, assetsDir string, web fs.FS) *Server {
 	return &Server{
 		store: store, monitor: mon, widgets: widgets.NewService(), docker: dock,
+		drop:      drop.NewStore(filepath.Join(assetsDir, "drop"), dropLimit()),
 		assetsDir: assetsDir, web: web,
 	}
 }
+
+// Sweep tidies up after an unclean shutdown; call it once at start.
+func (s *Server) Sweep() { s.drop.Sweep() }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -48,6 +54,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/containers", s.listContainers)
 	mux.HandleFunc("GET /api/discover", s.discoverServices)
 	mux.HandleFunc("GET /api/containers/{name}/logs", s.containerLogs)
+	mux.HandleFunc("GET /api/drop", s.listDrop)
+	mux.HandleFunc("POST /api/drop", s.postDrop)
+	mux.HandleFunc("GET /api/drop/targets", s.dropTargets)
+	mux.HandleFunc("DELETE /api/drop/{id}", s.deleteDrop)
+	mux.HandleFunc("GET /api/drop/{id}/file", s.dropFile)
+	mux.HandleFunc("POST /api/drop/{id}/send", s.sendDrop)
+	mux.HandleFunc("POST /share", s.share)
+	mux.HandleFunc("GET /manifest.webmanifest", s.manifest)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
@@ -181,8 +195,12 @@ func (s *Server) spa() http.Handler {
 		name := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
 		if name != "" {
 			if info, err := fs.Stat(s.web, name); err == nil && !info.IsDir() {
-				if strings.HasPrefix(name, "assets/") {
+				switch {
+				case strings.HasPrefix(name, "assets/"):
 					w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+				case name == "sw.js":
+					// Browsers check for a new service worker on every visit.
+					w.Header().Set("Cache-Control", "no-cache")
 				}
 				files.ServeHTTP(w, r)
 				return

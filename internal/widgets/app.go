@@ -2,11 +2,15 @@ package widgets
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -20,7 +24,8 @@ import (
 //	  "stats":    [{"label", "value", "unit"?, "caption"?, "tone"?}],
 //	  "progress": [{"label", "value", "max", "caption"?}],
 //	  "items_title": "…", "items_layout": "covers" | "list",
-//	  "items":    [{"title", "subtitle"?, "image"?, "url"?, "progress"?, "caption"?}]
+//	  "items":    [{"title", "subtitle"?, "image"?, "url"?, "progress"?, "caption"?}],
+//	  "accepts":  {"url", "types", "label"?, "field"?}
 //	}
 //
 // Relative image paths are served by the app and fetched through Foyer
@@ -53,6 +58,14 @@ type AppItem struct {
 	Caption  string   `json:"caption,omitempty"`
 }
 
+// AppAccepts declares that the app takes uploads of some file types.
+type AppAccepts struct {
+	URL   string   `json:"url"`
+	Types []string `json:"types"` // extensions (".epub") or MIME types
+	Label string   `json:"label,omitempty"`
+	Field string   `json:"field,omitempty"`
+}
+
 type AppWidget struct {
 	Version     int           `json:"version"`
 	Stats       []AppStat     `json:"stats"`
@@ -60,6 +73,7 @@ type AppWidget struct {
 	ItemsTitle  string        `json:"items_title,omitempty"`
 	ItemsLayout string        `json:"items_layout"`
 	Items       []AppItem     `json:"items"`
+	Accepts     *AppAccepts   `json:"accepts,omitempty"`
 }
 
 func clip(s string, n int) string {
@@ -109,6 +123,21 @@ func (w *AppWidget) sanitize() error {
 		w.ItemsLayout = "list"
 	}
 	w.ItemsTitle = clip(w.ItemsTitle, 40)
+	if a := w.Accepts; a != nil {
+		types := []string{}
+		for _, t := range a.Types[:min(len(a.Types), 20)] {
+			if t = strings.ToLower(strings.TrimSpace(t)); t != "" {
+				types = append(types, clip(t, 80))
+			}
+		}
+		a.Types, a.Label, a.Field = types, clip(a.Label, 40), clip(a.Field, 40)
+		if a.Field == "" {
+			a.Field = "file"
+		}
+		if !relativePath(a.URL) || len(types) == 0 {
+			w.Accepts = nil
+		}
+	}
 	if w.Stats == nil {
 		w.Stats = []AppStat{}
 	}
@@ -216,4 +245,102 @@ func Probe(ctx context.Context, base string) (string, bool) {
 		return "", false
 	}
 	return u.String(), true
+}
+
+// Accepts reports whether an app's accepts rule covers a file.
+func (a *AppAccepts) Accepts(name, contentType string) bool {
+	if a == nil {
+		return false
+	}
+	ext := strings.ToLower(path.Ext(name))
+	contentType = strings.ToLower(contentType)
+	for _, t := range a.Types {
+		if (strings.HasPrefix(t, ".") && t == ext) || t == contentType || t == "*/*" ||
+			(strings.HasSuffix(t, "/*") && strings.HasPrefix(contentType, strings.TrimSuffix(t, "*"))) {
+			return true
+		}
+	}
+	return false
+}
+
+// SendFile uploads a file to an app, as described by its widget's accepts
+// rule. The request goes to the app's own address (from the widget URL),
+// never to one the widget data names.
+func SendFile(ctx context.Context, w config.Widget, a *AppAccepts, name, contentType string, body io.Reader) error {
+	base, err := url.Parse(config.ExpandEnv(w.String("url")))
+	if err != nil || base.Host == "" || !relativePath(a.URL) {
+		return fmt.Errorf("invalid upload address")
+	}
+	target, err := url.Parse(a.URL)
+	if err != nil {
+		return fmt.Errorf("invalid upload address")
+	}
+	dst := base.ResolveReference(target)
+	dst.Scheme, dst.Host, dst.User = base.Scheme, base.Host, nil
+
+	pr, pw := io.Pipe()
+	form := multipart.NewWriter(pw)
+	go func() {
+		header := textproto.MIMEHeader{}
+		header.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`,
+			quoteEscaper.Replace(a.Field), quoteEscaper.Replace(name)))
+		header.Set("Content-Type", contentType)
+		part, err := form.CreatePart(header)
+		if err == nil {
+			_, err = io.Copy(part, body)
+		}
+		if err == nil {
+			err = form.Close()
+		}
+		pw.CloseWithError(err)
+	}()
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, dst.String(), pr)
+	if err != nil {
+		pr.Close()
+		return err
+	}
+	req.Header.Set("Content-Type", form.FormDataContentType())
+	req.Header.Set("Accept", "application/json")
+	if key := config.ExpandEnv(w.String("key")); key != "" {
+		req.Header.Set("Authorization", "Bearer "+key)
+	}
+	resp, err := uploadClient.Do(req)
+	if err != nil {
+		pr.Close()
+		return fmt.Errorf("could not reach %s", dst.Host)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 300 {
+		return nil
+	}
+	return fmt.Errorf("%s", errorMessage(resp))
+}
+
+var (
+	uploadClient = &http.Client{} // bounded by the request context
+	quoteEscaper = strings.NewReplacer("\\", "\\\\", `"`, "\\\"", "\r", "", "\n", "")
+)
+
+// errorMessage pulls a readable message out of an error response.
+func errorMessage(resp *http.Response) string {
+	var body struct {
+		Detail  any    `json:"detail"` // FastAPI
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+	if json.Unmarshal(raw, &body) == nil {
+		if s, ok := body.Detail.(string); ok && s != "" {
+			return clip(s, 200)
+		}
+		for _, s := range []string{body.Error, body.Message} {
+			if s != "" {
+				return clip(s, 200)
+			}
+		}
+	}
+	return fmt.Sprintf("the app answered HTTP %d", resp.StatusCode)
 }

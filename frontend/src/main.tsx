@@ -12,3 +12,12 @@ import { App } from "./App";
 import "./styles.css";
 
 render(<App />, document.getElementById("app")!);
+
+// Installable app: the service worker caches the app shell (never the API).
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      // Needs HTTPS (or localhost); the dashboard works the same without it.
+    });
+  });
+}

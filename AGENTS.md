@@ -23,6 +23,11 @@ and the Preact + TypeScript frontend (`frontend/`), which is built into
   background. Container names from requests are resolved against the list
   (`Client.Find`) before reaching the Docker API.
 - There is no authentication by design; Foyer runs on private networks.
+  Endpoints that accept plain form posts (Drop, the `/share` target) refuse
+  `Sec-Fetch-Site: cross-site` so other websites can't post to them.
+- Drop (`internal/drop`) stores items in `/config/drop/items.json` and files
+  in `/config/drop/files/`, streamed to disk. Uploaded files are served as
+  downloads unless they're a passive type (images, video, audio, PDF, text).
 - Widget settings (URLs, API keys) never reach the browser: `Config.Public()`
   strips them and widget data is fetched server-side. Secret fields are
   masked for the editor and restored on save (`RestoreSecrets`).

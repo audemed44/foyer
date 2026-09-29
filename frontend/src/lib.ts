@@ -1,4 +1,4 @@
-import type { Config, Group, Service, ServiceStatus } from "./types";
+import type { Config, DropTarget, Group, Service, ServiceStatus } from "./types";
 
 const DASHBOARD_ICONS = "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons";
 const SIMPLE_ICONS = "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons";
@@ -189,4 +189,34 @@ export function countStatus(statuses: (ServiceStatus | undefined)[]): {
     if (info.tone !== "bad") up++;
   }
   return { up, total };
+}
+
+/** "Today", "Yesterday", or a date like "Mon 28 Sep". */
+export function dayLabel(date: Date, now = new Date()): string {
+  const start = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((start(now) - start(date)) / 864e5);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  const opts: Intl.DateTimeFormatOptions = { weekday: "short", day: "numeric", month: "short" };
+  if (date.getFullYear() !== now.getFullYear()) opts.year = "numeric";
+  return date.toLocaleDateString([], opts);
+}
+
+/** A file's extension in capitals, for labels: "Dune.epub" → "EPUB". */
+export function fileExt(name: string): string {
+  const m = name.match(/\.([a-z0-9]{1,8})$/i);
+  return m ? m[1].toUpperCase() : "";
+}
+
+/** Mirrors the server: does an app's accepts rule cover this file? */
+export function targetAccepts(target: DropTarget, name: string, type: string): boolean {
+  const ext = name.includes(".") ? name.slice(name.lastIndexOf(".")).toLowerCase() : "";
+  type = type.toLowerCase();
+  return target.types.some(
+    (t) =>
+      (t.startsWith(".") && t === ext) ||
+      t === type ||
+      t === "*/*" ||
+      (t.endsWith("/*") && type.startsWith(t.slice(0, -1))),
+  );
 }
