@@ -2,7 +2,7 @@ import { Activity, Clock3, Cpu, HardDrive, MemoryStick, Thermometer } from "luci
 import type { ComponentChildren } from "preact";
 import { api } from "../api";
 import { usePoll, useNow } from "../hooks";
-import { formatBytes, formatDuration, greeting } from "../lib";
+import { countStatus, formatBytes, formatDuration, greeting } from "../lib";
 import type { Config, StatusMap, SystemStats } from "../types";
 
 export function Header({ config, status }: { config: Config; status: StatusMap | null }) {
@@ -46,20 +46,19 @@ function Stats({ config, status }: { config: Config; status: StatusMap | null })
   const opts = config.header.system;
   const { data } = usePoll<SystemStats>(api.system, 5000);
 
-  const pings = Object.values(status ?? {}).flatMap((s) => (s.ping ? [s.ping] : []));
-  const up = pings.filter((p) => p.state === "up").length;
+  const { up, total } = countStatus(Object.values(status ?? {}));
 
   const tiles: ComponentChildren[] = [];
-  if (pings.length > 0) {
+  if (total > 0) {
     tiles.push(
       <Stat
         key="services"
         icon={<Activity size={12} />}
         label="Online"
         value={String(up)}
-        unit={`/${pings.length}`}
-        sub={up === pings.length ? "all services up" : `${pings.length - up} down`}
-        tone={up === pings.length ? "" : "bad"}
+        unit={`/${total}`}
+        sub={up === total ? "all services up" : `${total - up} down`}
+        tone={up === total ? "" : "bad"}
       />,
     );
   }

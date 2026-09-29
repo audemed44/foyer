@@ -11,7 +11,15 @@ import {
 } from "lucide-preact";
 import { useState } from "preact/hooks";
 import { useColumns } from "../hooks";
-import { formatBytes, groupSpan, iconUrl, packGroups, serviceSpan } from "../lib";
+import {
+  countStatus,
+  formatBytes,
+  groupSpan,
+  iconUrl,
+  packGroups,
+  serviceSpan,
+  statusInfo,
+} from "../lib";
 import { useTint } from "../tint";
 import type { Config, DockerContainer, Group, Service, ServiceStatus, StatusMap } from "../types";
 import { WidgetBody } from "../widgets";
@@ -92,8 +100,8 @@ function GroupSection(props: {
   const [dropping, setDropping] = useState(false);
   // On a phone the page is one column; lay tiles out two-up instead of a long list.
   const tileCols = columns === 1 ? 2 : span;
-  const pinged = group.services.map((s) => status[s.id]?.ping).filter(Boolean);
-  const down = pinged.filter((p) => p!.state === "down").length;
+  const counts = countStatus(group.services.map((s) => status[s.id]));
+  const down = counts.total - counts.up;
 
   const toggle = () => {
     const next = !collapsed;
@@ -160,14 +168,14 @@ function GroupSection(props: {
           </span>
         ) : (
           <span class={`eyebrow group-meta ${down ? "bad" : ""}`}>
-            {pinged.length > 0 && <span class={`dot ${down ? "bad" : "good"}`} />}
-            {pinged.length === 0
+            {counts.total > 0 && <span class={`dot ${down ? "bad" : "good"}`} />}
+            {counts.total === 0
               ? `${group.services.length} ${group.services.length === 1 ? "app" : "apps"}`
               : down
                 ? `${down} down`
                 : narrow
-                  ? `${pinged.length}/${pinged.length}`
-                  : `${pinged.length} of ${pinged.length} up`}
+                  ? `${counts.total}/${counts.total}`
+                  : `${counts.total} of ${counts.total} up`}
           </span>
         )}
       </div>
@@ -209,18 +217,6 @@ function readDrag(e: DragEvent): Position | null {
   if (!raw) return null;
   e.stopPropagation();
   return JSON.parse(raw);
-}
-
-function statusInfo(st?: ServiceStatus): { tone: string; label: string } | null {
-  const c = st?.container;
-  const p = st?.ping;
-  if (p?.state === "down") return { tone: "bad", label: p.error ?? `HTTP ${p.code}` };
-  if (c && c.state !== "running") return { tone: "bad", label: c.state };
-  if (c?.health === "unhealthy") return { tone: "warn", label: "unhealthy" };
-  if (c?.health === "starting") return { tone: "warn", label: "starting" };
-  if (p?.state === "up") return { tone: "good", label: `${p.latency_ms ?? 0}ms` };
-  if (c) return { tone: "good", label: c.health ?? "running" };
-  return null;
 }
 
 function ServiceCard(props: {

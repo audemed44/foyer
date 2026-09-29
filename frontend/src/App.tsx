@@ -10,7 +10,7 @@ import { LogViewer } from "./components/Logs";
 import { Search } from "./components/Search";
 import { Suggestions } from "./components/Suggestions";
 import { usePoll } from "./hooks";
-import { newId } from "./lib";
+import { countStatus, newId } from "./lib";
 import { navigate, routeHref, useRoute } from "./router";
 import { applyTheme } from "./theme";
 import type {
@@ -200,13 +200,7 @@ export function App() {
   const openLogs = (name: string) => navigate({ ...route, logs: name });
   const closeLogs = () => navigate({ ...route, logs: null });
 
-  const totals = Object.values(status ?? {}).reduce(
-    (acc, s) => {
-      if (s.ping) acc[s.ping.state === "up" ? "up" : "down"]++;
-      return acc;
-    },
-    { up: 0, down: 0 },
-  );
+  const totals = countStatus(Object.values(status ?? {}));
 
   return (
     <div class={`page ${draft ? "is-editing" : ""}`}>
@@ -294,10 +288,10 @@ export function App() {
         )}
         <footer class="foot">
           <span>
-            {totals.up + totals.down > 0 && (
+            {totals.total > 0 && (
               <>
-                <span class={`dot ${totals.down ? "bad" : "good"}`} /> {totals.up}/
-                {totals.up + totals.down} services up
+                <span class={`dot ${totals.up < totals.total ? "bad" : "good"}`} /> {totals.up}/
+                {totals.total} services up
               </>
             )}
           </span>
