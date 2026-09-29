@@ -26,6 +26,10 @@ Preact frontend, **~7 MB of RAM** at idle, in an 18 MB image.
   the container it reaches, and the folders and volumes that container keeps
   its data in, with Kopia backup and Syncthing coverage and a list of
   problems (a domain pointing at nothing, data no snapshot covers)
+- **Alerts** through [Apprise](https://github.com/caronc/apprise-api):
+  a message when a service goes down, a backup is overdue, a Syncthing
+  folder breaks or a certificate is about to expire, and one when it
+  recovers
 - **Drop**: a shared inbox for notes, links and files. Install Foyer as an
   app on your phone and share things to it; send an EPUB straight on to an
   app that takes it (Shelfloom does)
@@ -132,6 +136,31 @@ in Drop can be sent to Shelfloom with one click.
 
 As everywhere else in Foyer, there's no login: anyone who can open the
 dashboard can read and add to Drop.
+
+### Alerts
+
+Foyer can notify you through an [Apprise API](https://github.com/caronc/apprise-api)
+server, which forwards to Telegram, Discord, ntfy, email and the rest.
+Save your notification URLs in Apprise under a key (say `foyer`), then set
+the notify URL in *Edit → Settings → Alerts* and send a test:
+
+```yaml
+alerts:
+  apprise_url: http://apprise-api:8000/notify/foyer
+  tag: ""              # optional Apprise tag
+  down_after: 2        # failed checks in a row before a service is down
+  services: true       # dashboard services down or unhealthy
+  containers: false    # any other container crashing, restart-looping or unhealthy
+  backups: true        # Kopia sources overdue, never backed up, or skipping files
+  sync: true           # Syncthing folder errors
+  certificates: true   # NPM certificates within the widget's warn_days
+```
+
+Each problem sends one message when it starts and one when it clears, never
+a stream. Services are checked on the status-check interval; Kopia,
+Syncthing and NPM every 5 minutes through their widgets, and only while
+alerts are on. Open problems are kept in `/config/alerts.json`, so
+restarting Foyer doesn't repeat them. The settings tab lists recent alerts.
 
 ### Moving from Homepage
 

@@ -100,6 +100,21 @@ type Header struct {
 	System   System `yaml:"system" json:"system"`
 }
 
+// Alerts sends notifications through Apprise. Empty AppriseURL turns them off.
+type Alerts struct {
+	// AppriseURL is an Apprise API notify endpoint, e.g.
+	// http://apprise-api:8000/notify/foyer (a key saved in Apprise).
+	AppriseURL string `yaml:"apprise_url" json:"apprise_url"`
+	Tag        string `yaml:"tag" json:"tag"`
+	// DownAfter is how many failed checks in a row count as down.
+	DownAfter    int  `yaml:"down_after" json:"down_after"`
+	Services     bool `yaml:"services" json:"services"`         // dashboard services down / unhealthy
+	Containers   bool `yaml:"containers" json:"containers"`     // any container crashing or unhealthy
+	Backups      bool `yaml:"backups" json:"backups"`           // Kopia sources stale or failing
+	Sync         bool `yaml:"sync" json:"sync"`                 // Syncthing folder errors
+	Certificates bool `yaml:"certificates" json:"certificates"` // NPM certificates near expiry
+}
+
 type Config struct {
 	Title        string          `yaml:"title" json:"title"`
 	OpenInNewTab bool            `yaml:"open_in_new_tab" json:"open_in_new_tab"`
@@ -110,6 +125,7 @@ type Config struct {
 	Bookmarks    []BookmarkGroup `yaml:"bookmarks" json:"bookmarks"`
 	// IgnoredContainers are never suggested as new services in edit mode.
 	IgnoredContainers []string `yaml:"ignored_containers" json:"ignored_containers"`
+	Alerts            Alerts   `yaml:"alerts" json:"alerts"`
 }
 
 // Default is the starting point every config file is decoded over, so keys
@@ -134,6 +150,9 @@ func Default() Config {
 		Groups:            []Group{},
 		Bookmarks:         []BookmarkGroup{},
 		IgnoredContainers: []string{},
+		Alerts: Alerts{
+			DownAfter: 2, Services: true, Backups: true, Sync: true, Certificates: true,
+		},
 	}
 }
 
@@ -173,6 +192,7 @@ func (c *Config) Normalize() error {
 	t.BackgroundBlur = clamp(t.BackgroundBlur, 0, 40)
 	t.BackgroundDim = max(0, min(1, t.BackgroundDim))
 	c.PingInterval = clamp(c.PingInterval, 5, 3600)
+	c.Alerts.DownAfter = clamp(c.Alerts.DownAfter, 1, 20)
 
 	seen := map[string]bool{}
 	unique := func(base string) string {
@@ -266,6 +286,8 @@ func (c Config) Public() Config {
 		}
 		s.Ping = ""
 	}
+	// Where alerts go is a setting like any other widget URL.
+	out.Alerts.AppriseURL, out.Alerts.Tag = "", ""
 	return out
 }
 
