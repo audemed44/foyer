@@ -252,6 +252,11 @@ button {
     transform: translateY(14px);
   }
 }
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 @keyframes shimmer {
   to {
     background-position: -200% 0;
@@ -2367,6 +2372,46 @@ input[type="range"] {
 }
 .app-list a.app-item:hover .app-item-title {
   color: var(--accent-hi);
+}
+
+/* An item with an action (e.g. Hoist's Deploy): the item, then its button. */
+.app-item-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+.app-item-row > .app-item {
+  flex: 1;
+  min-width: 0;
+  border-top: 0;
+}
+.app-list .app-item-row > .app-item {
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+}
+.app-action {
+  flex: none;
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+.app-action .spin {
+  animation: spin 0.9s linear infinite;
+}
+.app-action-note {
+  margin: -2px 0 8px 48px;
+  font-size: 12px;
+  color: var(--fg-2);
+}
+.app-action-note.good {
+  color: var(--good);
+}
+.app-action-note.bad {
+  color: var(--bad);
+}
+.app-action-note a {
+  color: var(--accent-hi);
+  font-weight: 600;
 }
 
 .suggest-widget {

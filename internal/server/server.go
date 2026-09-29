@@ -34,6 +34,7 @@ type Server struct {
 	lastIntegrations time.Time
 	assetsDir        string // holds icons/ and images/
 	web              fs.FS
+	actions          *actionStatuses
 }
 
 func New(store *config.Store, mon *monitor.Monitor, dock *docker.Client, assetsDir string, web fs.FS) *Server {
@@ -42,6 +43,7 @@ func New(store *config.Store, mon *monitor.Monitor, dock *docker.Client, assetsD
 		drop:      drop.NewStore(filepath.Join(assetsDir, "drop"), dropLimit()),
 		alerts:    alerts.New(filepath.Join(assetsDir, "alerts.json")),
 		assetsDir: assetsDir, web: web,
+		actions: newActionStatuses(),
 	}
 }
 
@@ -57,6 +59,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/system", s.getSystem)
 	mux.HandleFunc("GET /api/widgets/{id}", s.getWidget)
 	mux.HandleFunc("GET /api/widgets/{id}/image", s.getWidgetImage)
+	mux.HandleFunc("POST /api/widgets/{id}/action", s.runWidgetAction)
+	mux.HandleFunc("GET /api/widgets/{id}/action", s.widgetActionStatus)
 	mux.HandleFunc("GET /api/icons", s.listIcons)
 	mux.HandleFunc("GET /api/containers", s.listContainers)
 	mux.HandleFunc("GET /api/discover", s.discoverServices)

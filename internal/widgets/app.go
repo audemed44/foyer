@@ -24,12 +24,14 @@ import (
 //	  "stats":    [{"label", "value", "unit"?, "caption"?, "tone"?}],
 //	  "progress": [{"label", "value", "max", "caption"?}],
 //	  "items_title": "…", "items_layout": "covers" | "list",
-//	  "items":    [{"title", "subtitle"?, "image"?, "url"?, "progress"?, "caption"?}],
+//	  "items":    [{"title", "subtitle"?, "image"?, "url"?, "progress"?, "caption"?,
+//	                "action"?: {"label", "url", "confirm"?}}],
 //	  "accepts":  {"url", "types", "label"?, "field"?}
 //	}
 //
 // Relative image paths are served by the app and fetched through Foyer
 // (ProxyImage); relative item URLs resolve against the service's link.
+// Actions are POSTed by Foyer to the app's own address (RunAction).
 
 // WellKnownPath is where apps serve their widget; discovery probes it.
 const WellKnownPath = "/api/foyer/widget"
@@ -50,12 +52,20 @@ type AppProgress struct {
 }
 
 type AppItem struct {
-	Title    string   `json:"title"`
-	Subtitle string   `json:"subtitle,omitempty"`
-	Image    string   `json:"image,omitempty"`
-	URL      string   `json:"url,omitempty"`
-	Progress *float64 `json:"progress,omitempty"` // 0-100
-	Caption  string   `json:"caption,omitempty"`
+	Title    string     `json:"title"`
+	Subtitle string     `json:"subtitle,omitempty"`
+	Image    string     `json:"image,omitempty"`
+	URL      string     `json:"url,omitempty"`
+	Progress *float64   `json:"progress,omitempty"` // 0-100
+	Caption  string     `json:"caption,omitempty"`
+	Action   *AppAction `json:"action,omitempty"`
+}
+
+// AppAction is a button on an item, e.g. Hoist's "Deploy" on a stack.
+type AppAction struct {
+	Label   string `json:"label"`
+	URL     string `json:"url"`               // a path on the app, POSTed to
+	Confirm string `json:"confirm,omitempty"` // asked before running it
 }
 
 // AppAccepts declares that the app takes uploads of some file types.
@@ -117,6 +127,15 @@ func (w *AppWidget) sanitize() error {
 		}
 		if !relativePath(it.Image) && !strings.HasPrefix(it.Image, "https://") {
 			it.Image = ""
+		}
+		if a := it.Action; a != nil {
+			a.Label, a.Confirm = clip(a.Label, 24), clip(a.Confirm, 200)
+			if a.Label == "" {
+				a.Label = "Run"
+			}
+			if !relativePath(a.URL) {
+				it.Action = nil
+			}
 		}
 	}
 	if w.ItemsLayout != "covers" {
@@ -261,6 +280,108 @@ func (a *AppAccepts) Accepts(name, contentType string) bool {
 		}
 	}
 	return false
+}
+
+// HasAction reports whether an item of the widget offers an action at url,
+// so Foyer only ever POSTs to actions the app itself listed.
+func (w AppWidget) HasAction(url string) bool {
+	for _, it := range w.Items {
+		if it.Action != nil && it.Action.URL == url {
+			return true
+		}
+	}
+	return false
+}
+
+// appURL resolves a path against the app's own address (from the widget
+// URL), never a host the widget data names.
+func appURL(w config.Widget, p string) (string, error) {
+	base, err := url.Parse(config.ExpandEnv(w.String("url")))
+	if err != nil || base.Host == "" || !relativePath(p) {
+		return "", fmt.Errorf("invalid address")
+	}
+	ref, err := url.Parse(p)
+	if err != nil {
+		return "", fmt.Errorf("invalid address")
+	}
+	dst := base.ResolveReference(ref)
+	dst.Scheme, dst.Host, dst.User = base.Scheme, base.Host, nil
+	return dst.String(), nil
+}
+
+// ActionResult is what an app answers an action, or its status, with. All
+// fields are optional. StatusURL (a path on the app) is polled while State
+// is "running"; State is "running", "done" or "failed".
+type ActionResult struct {
+	Message   string `json:"message"`
+	URL       string `json:"url,omitempty"`
+	StatusURL string `json:"status_url,omitempty"`
+	State     string `json:"state"`
+}
+
+func (r *ActionResult) sanitize() {
+	r.Message = clip(r.Message, 200)
+	if !safeLink(r.URL) {
+		r.URL = ""
+	}
+	if !relativePath(r.StatusURL) {
+		r.StatusURL = ""
+	}
+	switch r.State {
+	case "running", "done", "failed":
+	default:
+		// No state: running while there's something to poll, else done.
+		r.State = "done"
+		if r.StatusURL != "" {
+			r.State = "running"
+		}
+	}
+}
+
+func actionCall(ctx context.Context, w config.Widget, method, p string) (ActionResult, error) {
+	dst, err := appURL(w, p)
+	if err != nil {
+		return ActionResult{}, err
+	}
+	var body io.Reader
+	if method == http.MethodPost {
+		body = strings.NewReader("{}")
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, method, dst, body)
+	if err != nil {
+		return ActionResult{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if key := config.ExpandEnv(w.String("key")); key != "" {
+		req.Header.Set("Authorization", "Bearer "+key)
+	}
+	resp, err := uploadClient.Do(req)
+	if err != nil {
+		return ActionResult{}, fmt.Errorf("could not reach %s", req.URL.Host)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return ActionResult{}, fmt.Errorf("%s", errorMessage(resp))
+	}
+	var res ActionResult
+	_ = json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&res)
+	res.sanitize()
+	return res, nil
+}
+
+// RunAction POSTs to an action the widget lists.
+func RunAction(ctx context.Context, w config.Widget, p string) (ActionResult, error) {
+	return actionCall(ctx, w, http.MethodPost, p)
+}
+
+// ActionStatus fetches the status of a running action.
+func ActionStatus(ctx context.Context, w config.Widget, p string) (ActionResult, error) {
+	return actionCall(ctx, w, http.MethodGet, p)
 }
 
 // Sent is what an app may answer an upload with: a line to show, and a

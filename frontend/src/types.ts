@@ -218,3 +218,12 @@ export type Topology = {
   issues: { tone: "bad" | "warn"; text: string; node?: string }[];
   sources: { docker?: string; npm?: string; kopia?: string; syncthing?: string };
 };
+
+/** An app's answer to a widget action (e.g. Hoist's Deploy), as Foyer relays it. */
+export interface ActionResult {
+  state: "running" | "done" | "failed";
+  message: string;
+  url?: string;
+  /** Poll with this while the state is "running". */
+  status?: string;
+}

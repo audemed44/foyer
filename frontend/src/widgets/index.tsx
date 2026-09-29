@@ -1,9 +1,11 @@
-import { ArrowDown, ArrowUp, Timer } from "lucide-preact";
-import { useState } from "preact/hooks";
+import { ArrowDown, ArrowUp, LoaderCircle, Timer } from "lucide-preact";
+import type { ComponentChildren } from "preact";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { api } from "../api";
 import { usePoll, useNow } from "../hooks";
 import { timeAgo } from "../lib";
-import type { Service } from "../types";
+import { Dialog } from "../components/ui";
+import type { ActionResult, Service } from "../types";
 import { Figure } from "./figure";
 import {
   Komodo,
@@ -17,7 +19,9 @@ import {
 } from "./infra";
 
 export function WidgetBody({ service }: { service: Service }) {
-  const { data, error } = usePoll<unknown>(() => api.widget(service.id), 60000, [service.id]);
+  const { data, error, refresh } = usePoll<unknown>(() => api.widget(service.id), 60000, [
+    service.id,
+  ]);
   const type = service.widget?.type;
 
   if (error && !data) return <div class="widget widget-error">{error}</div>;
@@ -30,7 +34,7 @@ export function WidgetBody({ service }: { service: Service }) {
     case "calendar":
       return <Calendar data={data as CalendarData} />;
     case "app":
-      return <AppWidget data={data as AppData} service={service} />;
+      return <AppWidget data={data as AppData} service={service} onChange={refresh} />;
     case "kopia":
       return <Kopia data={data as KopiaData} />;
     case "syncthing":
@@ -206,8 +210,11 @@ type AppData = {
     url?: string;
     progress?: number;
     caption?: string;
+    action?: AppAction;
   }[];
 };
+
+type AppAction = { label: string; url: string; confirm?: string };
 
 /** Relative item links point into the app's public site. */
 function itemHref(url: string | undefined, service: Service): string | undefined {
@@ -221,7 +228,15 @@ function itemHref(url: string | undefined, service: Service): string | undefined
   }
 }
 
-function AppWidget({ data, service }: { data: AppData; service: Service }) {
+function AppWidget({
+  data,
+  service,
+  onChange,
+}: {
+  data: AppData;
+  service: Service;
+  onChange: () => void;
+}) {
   const image = (src?: string) =>
     src ? (src.startsWith("/") ? api.widgetImage(service.id, src) : src) : undefined;
   const empty = !data.stats.length && !data.progress.length && !data.items.length;
@@ -290,14 +305,26 @@ function AppWidget({ data, service }: { data: AppData; service: Service }) {
                   )}
                 </>
               );
+              const item = href ? (
+                <a href={href} target="_blank" rel="noopener noreferrer" class="app-item">
+                  {body}
+                </a>
+              ) : (
+                <div class="app-item">{body}</div>
+              );
               return (
                 <li key={i}>
-                  {href ? (
-                    <a href={href} target="_blank" rel="noopener noreferrer" class="app-item">
-                      {body}
-                    </a>
+                  {it.action ? (
+                    <ItemAction
+                      service={service}
+                      action={it.action}
+                      title={it.title}
+                      onDone={onChange}
+                    >
+                      {item}
+                    </ItemAction>
                   ) : (
-                    <div class="app-item">{body}</div>
+                    item
                   )}
                 </li>
               );
@@ -306,5 +333,112 @@ function AppWidget({ data, service }: { data: AppData; service: Service }) {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * A button an app put on an item (Hoist's Deploy on a stack). Foyer runs it
+ * against the app and follows it while the app says it's running; the app
+ * may be something Foyer itself depends on (a deploy can restart Foyer), so
+ * failed polls are retried rather than reported.
+ */
+function ItemAction(props: {
+  service: Service;
+  action: AppAction;
+  title: string;
+  /** Called when the action has finished, to reload the card. */
+  onDone: () => void;
+  children: ComponentChildren;
+}) {
+  const { service, action } = props;
+  const [confirming, setConfirming] = useState(false);
+  const [result, setResult] = useState<ActionResult | null>(null);
+  const [error, setError] = useState("");
+  const alive = useRef(true);
+  useEffect(() => () => void (alive.current = false), []);
+
+  const running = result?.state === "running";
+
+  const follow = async (status: string) => {
+    const started = Date.now();
+    while (alive.current && Date.now() - started < 60 * 60 * 1000) {
+      await new Promise((r) => setTimeout(r, 2500));
+      try {
+        const next = await api.widgetActionStatus(service.id, status);
+        if (!alive.current) return;
+        setResult(next);
+        if (next.state !== "running") {
+          props.onDone();
+          return;
+        }
+      } catch {
+        // Foyer or the app may be restarting; keep trying.
+      }
+    }
+  };
+
+  const run = async () => {
+    setConfirming(false);
+    setError("");
+    setResult({ state: "running", message: "Starting…" });
+    try {
+      const res = await api.widgetAction(service.id, action.url);
+      setResult(res);
+      if (res.state === "running" && res.status) follow(res.status);
+      else props.onDone();
+    } catch (e) {
+      setResult(null);
+      setError((e as Error).message);
+    }
+  };
+
+  const tone = error || result?.state === "failed" ? "bad" : result?.state === "done" ? "good" : "";
+  const message = error || result?.message;
+  return (
+    <>
+      <div class="app-item-row">
+        {props.children}
+        <button
+          class="btn app-action"
+          disabled={running}
+          onClick={() => (action.confirm ? setConfirming(true) : run())}
+        >
+          {running && <LoaderCircle size={13} class="spin" />}
+          {action.label}
+        </button>
+      </div>
+      {message && (
+        <p class={`app-action-note ${tone}`}>
+          {message}
+          {result?.url && (
+            <>
+              {" "}
+              <a href={result.url} target="_blank" rel="noopener noreferrer">
+                Open
+              </a>
+            </>
+          )}
+        </p>
+      )}
+      {confirming && (
+        <Dialog
+          title={`${action.label}: ${props.title}`}
+          onClose={() => setConfirming(false)}
+          footer={
+            <>
+              <span class="spacer" />
+              <button class="btn btn-ghost" onClick={() => setConfirming(false)}>
+                Cancel
+              </button>
+              <button class="btn btn-primary" onClick={run}>
+                {action.label}
+              </button>
+            </>
+          }
+        >
+          <p>{action.confirm}</p>
+        </Dialog>
+      )}
+    </>
   );
 }

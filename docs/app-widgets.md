@@ -44,7 +44,8 @@ Every section is optional:
       "image": "/api/books/42/cover",
       "url": "/books/42",
       "progress": 64,
-      "caption": "64%"
+      "caption": "64%",
+      "action": { "label": "Deploy", "url": "/api/foyer/deploy/main-stack", "confirm": "Deploy main-stack?" }
     }
   ],
   "accepts": { "url": "/api/foyer/upload", "types": [".epub", ".pdf"], "label": "Add to library" }
@@ -63,6 +64,35 @@ Every section is optional:
   open the app's public page.
 - Text is clipped to sensible lengths, so a misbehaving app can't break the
   card.
+
+## Actions
+
+An item can carry a button (`action`): [Hoist](https://github.com/audemed44/hoist)
+puts **Deploy** on each stack.
+
+- Clicking it shows `confirm`, when there is one, then Foyer POSTs `{}` to
+  `url` on the app's own address (taken from the widget URL), with the
+  widget's `key` as a bearer token. Only actions the widget lists can be
+  run, and `url` must be a path.
+- The app answers with a message, and optionally a link and a status to
+  follow:
+
+  ```json
+  { "message": "Deploying main-stack…", "url": "/jobs/42", "status_url": "/api/foyer/jobs/42" }
+  ```
+
+- While there's a `status_url`, Foyer polls it (GET, same key) every few
+  seconds until it answers a `state` other than `running`:
+
+  ```json
+  { "state": "done", "message": "main-stack: Recreated foyer", "url": "/jobs/42" }
+  ```
+
+  `state` is `running`, `done` or `failed`. Polling survives Foyer or the
+  app restarting midway, so a deploy that recreates Foyer itself still
+  reports back.
+- When the action ends, the card reloads to show what changed. `url`
+  resolves against the service's link, like item URLs.
 
 ## Taking files from Drop
 
