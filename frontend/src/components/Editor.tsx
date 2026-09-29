@@ -667,7 +667,11 @@ function AlertsEditor(props: { alerts: Alerts; onChange: (patch: Partial<Alerts>
     }
   };
 
-  const events = [...(recent?.history ?? [])].slice(0, 8);
+  // An ongoing problem is listed once, as ongoing, not again as an event.
+  const ongoing = new Set((recent?.open ?? []).map((e) => `${e.title}|${e.at}`));
+  const events = (recent?.history ?? [])
+    .filter((e) => !ongoing.has(`${e.title}|${e.at}`))
+    .slice(0, 8);
   return (
     <div class="stack">
       <Field
