@@ -156,3 +156,17 @@ func TestBuildIssues(t *testing.T) {
 		t.Errorf("bad issues should come first: %v", texts)
 	}
 }
+
+func TestStorageHoldingSeveralSyncedFolders(t *testing.T) {
+	g := Build(Input{
+		Containers: containers[3:4], Details: details,
+		Syncthing: &widgets.SyncthingData{Folders: []widgets.SyncFolder{
+			{Label: "Phone", Path: "/var/syncthing/phone", State: "idle"},
+			{Label: "Notes", Path: "/var/syncthing/notes", State: "idle"},
+		}},
+		SyncthingContainer: "syncthing",
+	})
+	if len(g.Storage) != 1 || g.Storage[0].Sync == nil || g.Storage[0].Sync.Folder != "2 folders" || !g.Storage[0].Sync.Partial {
+		t.Fatalf("storage: %+v", g.Storage)
+	}
+}
