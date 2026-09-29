@@ -376,11 +376,24 @@ func Build(in Input) Graph {
 					st.Backup = better(st.Backup, &Backup{State: b.src.State, Last: b.src.Last, Source: b.src.Path, Partial: true})
 				}
 			}
+			// Either the storage is inside a synced folder, or synced
+			// folders are inside it (then it's partly synced).
+			var inside []widgets.SyncFolder
 			for _, s := range syncs {
-				if within(st.Path, s.host) || within(s.host, st.Path) {
-					st.Sync = &Sync{Folder: s.folder.Label, State: s.folder.State, Partial: !within(st.Path, s.host)}
+				if within(st.Path, s.host) {
+					st.Sync, inside = &Sync{Folder: s.folder.Label, State: s.folder.State}, nil
 					break
 				}
+				if within(s.host, st.Path) {
+					inside = append(inside, s.folder)
+				}
+			}
+			if len(inside) > 0 {
+				label := inside[0].Label
+				if len(inside) > 1 {
+					label = fmt.Sprintf("%d folders", len(inside))
+				}
+				st.Sync = &Sync{Folder: label, State: inside[0].State, Partial: true}
 			}
 			g.Storage = append(g.Storage, st)
 		}
