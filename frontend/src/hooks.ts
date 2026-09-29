@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 
 /** Calls `load` now and every `ms` while the tab is visible. */
 export function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] = []) {
@@ -6,6 +6,7 @@ export function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] =
   const [error, setError] = useState<string | null>(null);
   const loadRef = useRef(load);
   loadRef.current = load;
+  const tickRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     let cancelled = false;
@@ -26,6 +27,7 @@ export function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] =
       if (!cancelled) timer = window.setTimeout(tick, ms);
     };
     const onVisible = () => document.visibilityState === "visible" && tick();
+    tickRef.current = tick;
     tick();
     document.addEventListener("visibilitychange", onVisible);
     return () => {
@@ -36,7 +38,9 @@ export function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ms, ...deps]);
 
-  return { data, error };
+  /** Loads again now (and restarts the interval). */
+  const refresh = useCallback(() => tickRef.current(), []);
+  return { data, error, refresh };
 }
 
 /** The current time, updated on each minute (or second) boundary. */

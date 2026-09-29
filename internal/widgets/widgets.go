@@ -89,6 +89,14 @@ func (s *Service) Fetch(ctx context.Context, serviceID string, w config.Widget) 
 	return data, err
 }
 
+// Invalidate drops a service's cached data, e.g. after one of its actions
+// changed what the widget shows.
+func (s *Service) Invalidate(serviceID string) {
+	s.mu.Lock()
+	delete(s.cache, serviceID)
+	s.mu.Unlock()
+}
+
 var client = &http.Client{Timeout: 10 * time.Second}
 
 // getJSON fetches url into out. headers are optional name/value pairs.

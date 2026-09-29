@@ -1,4 +1,5 @@
 import type {
+  ActionResult,
   Alerts,
   AlertsResponse,
   Config,
@@ -49,6 +50,12 @@ export const api = {
   status: () => request<StatusMap>("/api/status"),
   system: () => request<SystemStats>("/api/system"),
   widget: <T>(id: string) => request<T>(`/api/widgets/${encodeURIComponent(id)}`),
+  widgetAction: (id: string, url: string) =>
+    request<ActionResult>(`/api/widgets/${encodeURIComponent(id)}/action`, json("POST", { url })),
+  widgetActionStatus: (id: string, status: string) =>
+    request<ActionResult>(
+      `/api/widgets/${encodeURIComponent(id)}/action?status=${encodeURIComponent(status)}`,
+    ),
   icons: () => request<string[]>("/api/icons"),
   containers: () => request<DockerContainer[]>("/api/containers"),
   discover: () => request<DiscoverResponse>("/api/discover"),
