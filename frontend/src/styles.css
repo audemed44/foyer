@@ -2391,3 +2391,219 @@ input[type="range"] {
 .app-covers .app-item > .app-item-caption {
   margin-top: auto;
 }
+
+/* ── Drop (inbox) ───────────────────────────────────────────────────────── */
+
+.drop-page {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+.drop-lede {
+  margin-top: 18px;
+  max-width: 56ch;
+  color: var(--fg-2);
+  font-size: 15px;
+}
+.drop-composer {
+  position: relative;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  transition: border-color 0.2s;
+}
+.drop-composer:focus-within,
+.drop-composer.dragging {
+  border-color: var(--accent);
+}
+.drop-input {
+  display: block;
+  width: 100%;
+  min-height: 96px;
+  padding: 16px 18px;
+  background: transparent;
+  border: 0;
+  outline: none;
+  resize: vertical;
+  color: var(--fg);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.drop-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line-soft);
+}
+.drop-hint {
+  font-size: 12px;
+  color: var(--fg-3);
+}
+.drop-progress {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.drop-progress .bar {
+  margin: 6px 0 0;
+}
+.drop-overlay {
+  position: fixed;
+  inset: 12px;
+  z-index: 40;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  border: 2px dashed var(--accent);
+  background: rgb(var(--accent-rgb) / 0.12);
+  backdrop-filter: blur(6px);
+  color: var(--fg);
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: var(--display-weight);
+  letter-spacing: -0.03em;
+  pointer-events: none;
+}
+.drop-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--good);
+  padding: 8px 8px 8px 16px;
+  font-size: 13px;
+}
+.drop-notice.bad {
+  border-left-color: var(--bad);
+}
+.drop-notice span {
+  flex: 1;
+}
+.drop-skeleton {
+  height: 240px;
+}
+.drop-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.drop-row {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px 24px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.drop-kind {
+  padding-top: 3px;
+  white-space: nowrap;
+}
+.drop-title {
+  display: block;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.drop-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  font-size: 12.5px;
+  color: var(--fg-3);
+}
+.drop-link:hover .drop-title,
+.drop-file:hover .drop-title {
+  color: var(--accent-hi);
+}
+.drop-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+  color: var(--fg);
+}
+.drop-note .drop-title + .drop-text {
+  margin-top: 6px;
+  color: var(--fg-2);
+}
+.drop-text.clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 8;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.drop-more {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-hi);
+}
+.drop-file {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.drop-thumb {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border: 1px solid var(--line);
+  background: var(--well-bg);
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--fg-2);
+}
+.drop-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.drop-file-text {
+  min-width: 0;
+}
+.drop-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.drop-actions .icon-btn:hover {
+  color: var(--fg);
+  border-color: var(--line);
+}
+.drop-send {
+  margin-right: 4px;
+}
+.drop-send .icon {
+  width: 14px;
+  height: 14px;
+}
+.drop-usage {
+  margin-top: -16px;
+}
+@media (max-width: 760px) {
+  .drop-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .drop-kind {
+    grid-column: 1 / -1;
+    padding: 0;
+  }
+  .has-send .drop-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+  .drop-hint {
+    display: none;
+  }
+}

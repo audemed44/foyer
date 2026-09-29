@@ -4,19 +4,24 @@ import { useEffect, useState } from "preact/hooks";
  * Hash routes, so any URL works without server-side routing:
  *   #/                     dashboard
  *   #/containers           containers page
+ *   #/drop                 the Drop inbox
  *   …?logs=<name>          log viewer open over either page
  */
-export type Route = { page: "home" | "containers"; logs: string | null };
+export type Page = "home" | "containers" | "drop";
+export type Route = { page: Page; logs: string | null };
+
+const PAGES: Page[] = ["containers", "drop"];
 
 export function parseRoute(hash: string): Route {
   const [path, query = ""] = hash.replace(/^#/, "").split("?");
-  const page = path.replace(/\/+$/, "") === "/containers" ? "containers" : "home";
+  const name = path.replace(/\/+$/, "").replace(/^\//, "");
+  const page = PAGES.find((p) => p === name) ?? "home";
   const logs = new URLSearchParams(query).get("logs");
   return { page, logs: logs || null };
 }
 
 export function routeHref(route: Route): string {
-  const path = route.page === "containers" ? "#/containers" : "#/";
+  const path = route.page === "home" ? "#/" : `#/${route.page}`;
   return route.logs ? `${path}?logs=${encodeURIComponent(route.logs)}` : path;
 }
 

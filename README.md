@@ -21,6 +21,9 @@ Preact frontend, **~7 MB of RAM** at idle, in an 18 MB image.
   project, with live CPU, memory, network and health
 - **Live logs** for any container (a Dozzle replacement): follow, search,
   stderr highlighting, ANSI colours, timestamps, download
+- **Drop**: a shared inbox for notes, links and files. Install Foyer as an
+  app on your phone and share things to it; send an EPUB straight on to an
+  app that takes it (Shelfloom does)
 - **Discovery**: in edit mode, running containers that aren't on the
   dashboard are suggested with their name, icon, status check and link filled in
 - Imports an existing Homepage config on first start
@@ -81,6 +84,27 @@ from the image, the status check from the exposed port, and the link from
 the domain your other services share (`https://<name>.example.com`).
 Dismissed suggestions are stored under `ignored_containers` in `foyer.yaml`.
 
+### Install it as an app, and Drop
+
+Foyer is a Progressive Web App. Open it over HTTPS (for example behind your
+reverse proxy) and use your browser's **Install** or **Add to Home Screen**.
+The installed app keeps its shell cached, so it opens instantly.
+
+**Drop** (the inbox icon in the top bar) holds notes, links and files until
+you delete them, and every device sees the same list. Type or paste into the
+box, attach files, or drop them anywhere on the page. On Android, the
+installed app shows up in the share sheet: sharing a page, some text, or
+files from another app puts them in Drop. Links get their page title filled
+in.
+
+Files are stored in `/config/drop/`, up to 512 MB each by default
+(`FOYER_DROP_MAX_MB`). Apps whose widget has an `accepts` rule (see
+[the format](#the-format-version-1)) get a button on matching files: an EPUB
+in Drop can be sent to Shelfloom with one click.
+
+As everywhere else in Foyer, there's no login: anyone who can open the
+dashboard can read and add to Drop.
+
 ### Moving from Homepage
 
 Mount your Homepage folder (the one holding `config/`, `icons/` and
@@ -106,6 +130,7 @@ Supported widgets are carried over (`uptimekuma`, `speedtest`, and
 | `FOYER_PORT` | `8080` | |
 | `FOYER_IMPORT_DIR` | `/homepage` | Homepage config to import on first start. |
 | `FOYER_DOCKER_SOCKET` | `/var/run/docker.sock` | |
+| `FOYER_DROP_MAX_MB` | `512` | Largest file Drop accepts. |
 | `TZ` | UTC | Used for calendar events. The clock uses the browser's time zone. |
 
 ## Config
@@ -227,7 +252,8 @@ optional):
       "progress": 64,
       "caption": "64%"
     }
-  ]
+  ],
+  "accepts": { "url": "/api/books", "types": [".epub", ".pdf"], "label": "Add to library" }
 }
 ```
 
@@ -241,6 +267,10 @@ optional):
   directly.
 - `url` paths starting with `/` resolve against the service's link, so they
   open the app's public page.
+- `accepts` offers the app as a destination for files in Drop. `types` are
+  extensions (`.epub`) or MIME types (`image/*`). Foyer POSTs the file as
+  multipart form data, in the field `field` (default `file`), to `url` on the
+  app's own address, with the widget's `key` as a bearer token if one is set.
 
 Foyer refreshes the widget every minute and caches it for 45 seconds.
 

@@ -10,10 +10,13 @@ describe("router", () => {
       logs: "uptime-kuma",
     });
     expect(parseRoute("#/?logs=a%20b")).toEqual({ page: "home", logs: "a b" });
+    expect(parseRoute("#/drop?error=too+large")).toEqual({ page: "drop", logs: null });
+    expect(parseRoute("#/nowhere")).toEqual({ page: "home", logs: null });
   });
 
   it("round-trips", () => {
     const route = { page: "containers" as const, logs: "romm-db" };
     expect(parseRoute(routeHref(route))).toEqual(route);
+    expect(routeHref({ page: "drop", logs: null })).toBe("#/drop");
   });
 });

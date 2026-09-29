@@ -1,8 +1,9 @@
-import { Boxes, FolderPlus, LayoutGrid, Pencil, Settings2 } from "lucide-preact";
+import { Boxes, FolderPlus, Inbox, LayoutGrid, Pencil, Settings2 } from "lucide-preact";
 import { useCallback, useEffect, useState } from "preact/hooks";
 import { api } from "./api";
 import { Bookmarks } from "./components/Bookmarks";
 import { ContainersPage } from "./components/Containers";
+import { DropPage } from "./components/Drop";
 import { GroupDialog, ServiceDialog, SettingsDialog } from "./components/Editor";
 import { Groups, type EditActions, type Position } from "./components/Groups";
 import { Header } from "./components/Header";
@@ -73,7 +74,11 @@ export function App() {
   }, [dirty]);
 
   if (!config) {
-    return <div class="boot">{loadError ? `Could not load the dashboard: ${loadError}` : ""}</div>;
+    return (
+      <div class="boot">
+        {loadError ? `Can't reach Foyer (${loadError}). Check your connection and try again.` : ""}
+      </div>
+    );
   }
 
   const startEditing = async () => {
@@ -244,6 +249,12 @@ export function App() {
           >
             <Boxes size={14} /> Containers
           </a>
+          <a
+            class={`topnav-link ${route.page === "drop" ? "on" : ""}`}
+            href={routeHref({ page: "drop", logs: null })}
+          >
+            <Inbox size={14} /> Drop
+          </a>
           {route.page === "home" && (
             <button class="topnav-link" onClick={startEditing} title="Edit dashboard">
               <Pencil size={14} /> Edit
@@ -261,6 +272,8 @@ export function App() {
         )}
         {route.page === "containers" && !draft ? (
           <ContainersPage onLogs={openLogs} />
+        ) : route.page === "drop" && !draft ? (
+          <DropPage />
         ) : (
           <>
             <Header config={config} status={status ?? null} />
