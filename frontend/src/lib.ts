@@ -1,4 +1,4 @@
-import type { Config, Group, Service } from "./types";
+import type { Config, Group, Service, ServiceStatus } from "./types";
 
 const DASHBOARD_ICONS = "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons";
 const SIMPLE_ICONS = "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons";
@@ -161,4 +161,32 @@ export function linkedContainers(config: Config): Set<string> {
     }
   }
   return linked;
+}
+
+export function statusInfo(st?: ServiceStatus): { tone: string; label: string } | null {
+  const c = st?.container;
+  const p = st?.ping;
+  if (p?.state === "down") return { tone: "bad", label: p.error ?? `HTTP ${p.code}` };
+  if (c && c.state !== "running") return { tone: "bad", label: c.state };
+  if (c?.health === "unhealthy") return { tone: "warn", label: "unhealthy" };
+  if (c?.health === "starting") return { tone: "warn", label: "starting" };
+  if (p?.state === "up") return { tone: "good", label: `${p.latency_ms ?? 0}ms` };
+  if (c) return { tone: "good", label: c.health ?? "running" };
+  return null;
+}
+
+/** Counts services that have a known state (a container or a status check). */
+export function countStatus(statuses: (ServiceStatus | undefined)[]): {
+  up: number;
+  total: number;
+} {
+  let up = 0;
+  let total = 0;
+  for (const st of statuses) {
+    const info = statusInfo(st);
+    if (!info) continue;
+    total++;
+    if (info.tone !== "bad") up++;
+  }
+  return { up, total };
 }

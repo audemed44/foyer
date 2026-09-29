@@ -137,7 +137,10 @@ export function ServiceDialog(props: {
         </datalist>
       </Field>
       <div class="row">
-        <Field label="Status check URL" hint="Checked from the server, e.g. http://sonarr:8989">
+        <Field
+          label="Status check URL"
+          hint="Optional. Without one, the linked container's state is the status"
+        >
           <TextInput value={s.ping} onChange={(v) => set("ping", v)} placeholder="optional" />
         </Field>
         <Field label="Docker container" hint="Shows running / health state.">

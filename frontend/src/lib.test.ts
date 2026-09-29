@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  countStatus,
   groupSpan,
   iconUrl,
   matchScore,
@@ -91,5 +92,13 @@ describe("layout", () => {
     // spans: 2, 4, 1, 1, 1, 2, 2  on 4 columns
     expect(packGroups([2, 4, 1, 1, 1, 2, 2], 4)).toEqual([0, 2, 3, 1, 4, 5, 6]);
     expect(packGroups([1, 1, 1], 1)).toEqual([0, 1, 2]);
+  });
+});
+
+describe("countStatus", () => {
+  it("counts container-only services and skips ones with no known state", () => {
+    const running = { container: { name: "a", state: "running", status: "Up" } };
+    const exited = { container: { name: "b", state: "exited", status: "Exited" } };
+    expect(countStatus([running, exited, {}, undefined])).toEqual({ up: 1, total: 2 });
   });
 });
