@@ -53,6 +53,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/icons", s.listIcons)
 	mux.HandleFunc("GET /api/containers", s.listContainers)
 	mux.HandleFunc("GET /api/discover", s.discoverServices)
+	mux.HandleFunc("GET /api/topology", s.getTopology)
 	mux.HandleFunc("GET /api/containers/{name}/logs", s.containerLogs)
 	mux.HandleFunc("GET /api/drop", s.listDrop)
 	mux.HandleFunc("POST /api/drop", s.postDrop)

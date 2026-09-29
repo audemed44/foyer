@@ -18,7 +18,8 @@ and the Preact + TypeScript frontend (`frontend/`), which is built into
   long-lived caches; prefer the standard library. Host stats are read
   straight from /proc and /sys (Linux only).
 - The Go module has one dependency (yaml.v3). Justify any new one.
-- Docker access (`internal/docker`) is read-only: list, stats, logs. Stats
+- Docker access (`internal/docker`) is read-only: list, inspect, stats, logs.
+  `Inspect` decodes only mounts and networks, never the environment. Stats
   are sampled on demand and cached for a few seconds, never polled in the
   background. Container names from requests are resolved against the list
   (`Client.Find`) before reaching the Docker API.

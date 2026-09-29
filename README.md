@@ -22,6 +22,10 @@ Preact frontend, **~7 MB of RAM** at idle, in an 18 MB image.
   project, with live CPU, memory, network and health
 - **Live logs** for any container (a Dozzle replacement): follow, search,
   stderr highlighting, ANSI colours, timestamps, download
+- **Topology**: a map of your homelab: each domain in Nginx Proxy Manager,
+  the container it reaches, and the folders and volumes that container keeps
+  its data in, with Kopia backup and Syncthing coverage and a list of
+  problems (a domain pointing at nothing, data no snapshot covers)
 - **Drop**: a shared inbox for notes, links and files. Install Foyer as an
   app on your phone and share things to it; send an EPUB straight on to an
   app that takes it (Shelfloom does)
@@ -80,10 +84,33 @@ labels work too, so an existing setup carries over:
 | `foyer.ping` | `homepage.siteMonitor` | Status check |
 | `foyer.hide=true` | | Never suggest this container |
 
-Without labels, Foyer guesses: the name from the compose service, the icon
+With an Nginx Proxy Manager widget on the dashboard, the link comes from
+the proxy host that forwards to the container. Otherwise, without labels,
+Foyer guesses: the name from the compose service, the icon
 from the image, the status check from the exposed port, and the link from
 the domain your other services share (`https://<name>.example.com`).
 Dismissed suggestions are stored under `ignored_containers` in `foyer.yaml`.
+
+### Topology
+
+The **Topology** page draws how things connect, in three columns:
+
+1. **Domains**: every proxy host in Nginx Proxy Manager, with its
+   certificate. A host is matched to a container by container name, compose
+   service or network alias; one that forwards to `host.docker.internal` or
+   an IP is matched to the container publishing that port, or else shown as
+   running on the host itself.
+2. **Containers**, grouped by compose project.
+3. **Storage**: the folders and volumes each container mounts, marked with
+   the Kopia snapshot that covers them (Kopia's paths are translated through
+   the Kopia container's own mounts) and any Syncthing folder they're in.
+
+Hover or click anything to highlight its chain; click for details (mounts,
+ports, networks, where it's reachable). The page lists problems at the top:
+domains that point at a stopped or missing container, certificates close to
+expiry, stale backups, and data written by running containers that no
+snapshot covers. It needs the Docker socket; the NPM, Kopia and Syncthing
+widgets each add their layer. Phones get a stacked list instead of the map.
 
 ### Install it as an app, and Drop
 

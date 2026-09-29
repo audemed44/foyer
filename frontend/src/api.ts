@@ -8,6 +8,7 @@ import type {
   DropResponse,
   DropTarget,
   SystemStats,
+  Topology,
 } from "./types";
 
 export class ApiError extends Error {
@@ -53,6 +54,7 @@ export const api = {
     `/api/widgets/${encodeURIComponent(serviceId)}/image?path=${encodeURIComponent(path)}`,
   logsUrl: (name: string, tail = 500) =>
     `/api/containers/${encodeURIComponent(name)}/logs?tail=${tail}`,
+  topology: () => request<Topology>("/api/topology"),
   drop: () => request<DropResponse>("/api/drop"),
   dropTargets: () => request<DropTarget[]>("/api/drop/targets"),
   deleteDrop: (id: string) =>

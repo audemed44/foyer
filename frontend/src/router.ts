@@ -5,12 +5,13 @@ import { useEffect, useState } from "preact/hooks";
  *   #/                     dashboard
  *   #/containers           containers page
  *   #/drop                 the Drop inbox
+ *   #/topology             how domains, containers and storage connect
  *   …?logs=<name>          log viewer open over either page
  */
-export type Page = "home" | "containers" | "drop";
+export type Page = "home" | "containers" | "drop" | "topology";
 export type Route = { page: Page; logs: string | null };
 
-const PAGES: Page[] = ["containers", "drop"];
+const PAGES: Page[] = ["containers", "drop", "topology"];
 
 export function parseRoute(hash: string): Route {
   const [path, query = ""] = hash.replace(/^#/, "").split("?");

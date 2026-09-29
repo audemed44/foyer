@@ -74,3 +74,16 @@ export function useColumns(max: number, minWidth = 250) {
   }, [max, minWidth]);
   return { ref, columns };
 }
+
+/** Whether a media query matches, kept up to date. */
+export function useMedia(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = () => setMatches(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [query]);
+  return matches;
+}

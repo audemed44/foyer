@@ -44,7 +44,8 @@ func (f *fakeDocker) serve(t *testing.T) *Client {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /containers/json", func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprint(w, `[
-			{"Id":"aaaaaaaaaaaa1111","Names":["/web"],"Image":"nginx","State":"running","Status":"Up 2 hours (healthy)","Labels":{"com.docker.compose.project":"main"}},
+			{"Id":"aaaaaaaaaaaa1111","Names":["/web"],"Image":"nginx","State":"running","Status":"Up 2 hours (healthy)","Labels":{"com.docker.compose.project":"main"},
+			 "Ports":[{"PrivatePort":80,"PublicPort":8080,"Type":"tcp","IP":"0.0.0.0"},{"PrivatePort":80,"PublicPort":8080,"Type":"tcp","IP":"::"},{"PrivatePort":443,"Type":"tcp"}]},
 			{"Id":"bbbbbbbbbbbb2222","Names":["/db"],"Image":"postgres","State":"exited","Status":"Exited (0) 1 day ago","Labels":{}},
 			{"Id":"cccccccccccc3333","Names":["/tty"],"Image":"alpine","State":"running","Status":"Up 1 minute","Labels":{}}
 		]`)
@@ -65,7 +66,11 @@ func (f *fakeDocker) serve(t *testing.T) *Client {
 		}`, total, system, total-25, system-100)
 	})
 	mux.HandleFunc("GET /containers/{id}/json", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, `{"Config":{"Tty":%t}}`, strings.HasPrefix(r.PathValue("id"), "cccc"))
+		fmt.Fprintf(w, `{"Config":{"Tty":%t,"Env":["SECRET=x"]},
+			"Mounts":[{"Type":"volume","Name":"webdata","Source":"/var/lib/docker/volumes/webdata/_data","Destination":"/data","RW":true},
+				{"Type":"bind","Source":"/srv/conf","Destination":"/conf","RW":false}],
+			"NetworkSettings":{"Networks":{"main_default":{"Aliases":["web","aaaaaaaaaaaa"],"DNSNames":["web","nginx-svc"]}}}}`,
+			strings.HasPrefix(r.PathValue("id"), "cccc"))
 	})
 	mux.HandleFunc("GET /containers/{id}/logs", func(w http.ResponseWriter, r *http.Request) {
 		f.logQuery.Store(r.URL.RawQuery)
@@ -106,6 +111,27 @@ func TestListAndFind(t *testing.T) {
 		if _, err := c.Find(context.Background(), ref); err != ErrNotFound {
 			t.Fatalf("Find(%q) should be ErrNotFound, got %v", ref, err)
 		}
+	}
+}
+
+func TestPublishedPortsAndInspect(t *testing.T) {
+	c := (&fakeDocker{}).serve(t)
+	web, err := c.Find(context.Background(), "web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(web.Published) != 1 || web.Published[0] != (PortMap{Host: 8080, Container: 80}) {
+		t.Fatalf("published: %+v", web.Published)
+	}
+	d, err := c.Inspect(context.Background(), web)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Mounts) != 2 || d.Mounts[0].Destination != "/conf" || d.Mounts[0].RW || d.Mounts[1].Name != "webdata" {
+		t.Fatalf("mounts: %+v", d.Mounts)
+	}
+	if strings.Join(d.Networks, ",") != "main_default" || strings.Join(d.Aliases, ",") != "nginx-svc,web" {
+		t.Fatalf("networks: %+v", d)
 	}
 }
 
