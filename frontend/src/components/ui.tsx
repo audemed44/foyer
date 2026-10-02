@@ -11,6 +11,9 @@ export function Dialog(props: {
   wide?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // Only a press that starts and ends on the backdrop closes the dialog, so
+  // drag-selecting text past the dialog's edge doesn't.
+  const pressedBackdrop = useRef(false);
   useEffect(() => {
     const dialog = ref.current!;
     dialog.showModal();
@@ -24,7 +27,11 @@ export function Dialog(props: {
         e.preventDefault();
         props.onClose();
       }}
-      onClick={(e) => e.target === ref.current && props.onClose()}
+      onPointerDown={(e) => (pressedBackdrop.current = e.target === ref.current)}
+      onClick={(e) => {
+        if (pressedBackdrop.current && e.target === ref.current) props.onClose();
+        pressedBackdrop.current = false;
+      }}
     >
       <div class="dialog-inner">
         <div class="dialog-head">
