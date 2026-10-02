@@ -34,6 +34,7 @@ export function WidgetBody({ service }: { service: Service }) {
     case "calendar":
       return <Calendar data={data as CalendarData} />;
     case "app":
+    case "gatehouse":
       return <AppWidget data={data as AppData} service={service} onChange={refresh} />;
     case "kopia":
       return <Kopia data={data as KopiaData} />;

@@ -213,3 +213,50 @@ func TestKomodo(t *testing.T) {
 		t.Fatalf("recent: %+v", d.Recent)
 	}
 }
+
+func TestGatehouseReadsCardAndDiscovery(t *testing.T) {
+	expires := time.Now().Add(10 * 24 * time.Hour).UTC().Format(time.RFC3339)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer tok" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		switch r.URL.Path {
+		case WellKnownPath:
+			fmt.Fprint(w, `{"version":1,"stats":[{"label":"Hosts","value":"2"}],
+				"items":[{"title":"convertx","subtitle":"sleeping","action":{"label":"Wake","url":"/api/foyer/wake/convertx"}}]}`)
+		case "/api/discovery":
+			fmt.Fprintf(w, `{"hosts":[
+				{"domains":["books.example.com"],"scheme":"http","forward_host":"shelfloom","forward_port":8000,"enabled":true,"https":true,"certificate":"wild","state":"awake"},
+				{"domains":["convert.example.com"],"scheme":"http","forward_host":"convertx","forward_port":3000,"enabled":false,"https":false,"state":"sleeping"}],
+				"redirects":[{}],
+				"certificates":[{"name":"wild","domains":["*.example.com"],"source":"acme","expires":%q,"hosts":1}],
+				"warn_days":14}`, expires)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+	got, err := gatehouse(context.Background(), config.Widget{"type": "gatehouse", "url": srv.URL, "key": "tok"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app, ok := AsApp(got)
+	if !ok || len(app.Items) != 1 || !app.HasAction("/api/foyer/wake/convertx") {
+		t.Fatalf("card: %+v", app)
+	}
+	p, ok := AsProxy(got)
+	if !ok || len(p.Hosts) != 2 || p.Disabled != 1 || p.Redirects != 1 || p.Hosts[1].State != "sleeping" {
+		t.Fatalf("proxy: %+v", p)
+	}
+	if !p.Hosts[0].SSL || p.Hosts[0].ForwardHost != "shelfloom" || p.Expiring != 1 ||
+		p.Certificates[0].Provider != "letsencrypt" || p.Certificates[0].Days < 9 {
+		t.Fatalf("proxy details: %+v", p)
+	}
+	if _, err := gatehouse(context.Background(), config.Widget{"type": "gatehouse", "url": srv.URL, "key": "wrong"}); err == nil {
+		t.Fatal("a wrong key worked")
+	}
+	if !IsApp(config.Widget{"type": "gatehouse"}) || IsApp(config.Widget{"type": "npm"}) {
+		t.Fatal("IsApp")
+	}
+}

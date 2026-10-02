@@ -39,6 +39,9 @@ type Domain struct {
 	// empty when nothing answers at that address.
 	Target  string `json:"target,omitempty"`
 	Service *Ref   `json:"service,omitempty"`
+	// Sleep is Gatehouse's scale-to-zero state when it isn't awake:
+	// sleeping, waking or stopping. A sleeping app is stopped on purpose.
+	Sleep string `json:"sleep,omitempty"`
 }
 
 type Container struct {
@@ -269,6 +272,9 @@ func Build(in Input) Graph {
 				Enabled: h.Enabled, Error: h.Error, Service: byDomain[strings.ToLower(h.Domains[0])],
 				Forward: fmt.Sprintf("%s://%s:%d", h.Scheme, h.ForwardHost, h.ForwardPort),
 			}
+			if h.State != "" && h.State != "awake" {
+				d.Sleep = h.State
+			}
 			if c, ok := certs[h.Certificate]; ok && h.SSL && !c.Expires.IsZero() {
 				days := c.Days
 				d.CertDays = &days
@@ -281,7 +287,7 @@ func Build(in Input) Graph {
 				if d.Service == nil {
 					d.Service = byContainer[name]
 				}
-				if c := byName[name]; c.State != "running" && d.Enabled {
+				if c := byName[name]; c.State != "running" && d.Enabled && d.Sleep == "" {
 					g.Issues = append(g.Issues, Issue{Tone: "bad", Node: d.ID,
 						Text: fmt.Sprintf("%s forwards to %s, which is %s", d.Name, name, c.State)})
 				}
@@ -290,7 +296,7 @@ func Build(in Input) Graph {
 				if !slices.Contains(hostPorts, h.ForwardPort) {
 					hostPorts = append(hostPorts, h.ForwardPort)
 				}
-			case d.Enabled && in.Containers != nil:
+			case d.Enabled && in.Containers != nil && d.Sleep == "":
 				g.Issues = append(g.Issues, Issue{Tone: "bad", Node: d.ID,
 					Text: fmt.Sprintf("%s forwards to %s:%d, but no container answers to that name", d.Name, h.ForwardHost, h.ForwardPort)})
 			}

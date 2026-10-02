@@ -82,7 +82,7 @@ export function Suggestions(props: {
                 {s.url && (
                   <span class="suggest-image" title={s.url}>
                     {s.url.replace(/^https?:\/\//, "")}
-                    {s.url_from_npm ? " · from NPM" : s.url_guessed ? " · guessed" : ""}
+                    {s.url_from_npm ? " · from the proxy" : s.url_guessed ? " · guessed" : ""}
                   </span>
                 )}
               </span>

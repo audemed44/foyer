@@ -74,7 +74,7 @@ func (s *Server) CheckAlerts(ctx context.Context) {
 	}
 	add(a.Backups, "backup:", "kopia", backupProblems)
 	add(a.Sync, "sync:", "syncthing", syncProblems)
-	add(a.Certificates, "cert:", "npm", certProblems)
+	add(a.Certificates, "cert:", "proxy", certProblems)
 	s.alerts.Evaluate(ctx, a, scope, problems)
 }
 
@@ -201,7 +201,7 @@ func syncProblems(data any) []alerts.Problem {
 }
 
 func certProblems(data any) []alerts.Problem {
-	d, ok := data.(widgets.NPMData)
+	d, ok := widgets.AsProxy(data)
 	if !ok {
 		return nil
 	}

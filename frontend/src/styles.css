@@ -235,6 +235,10 @@ button {
   background: var(--warn);
   box-shadow: 0 0 0 3px rgb(245 158 11 / 0.18);
 }
+.dot.accent {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 0.2);
+}
 .dot.bad {
   background: var(--bad);
   box-shadow: 0 0 0 3px rgb(var(--bad-rgb) / 0.2);

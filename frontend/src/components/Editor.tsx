@@ -70,6 +70,25 @@ const WIDGET_FIELDS: Record<string, WidgetField[]> = {
     { key: "url", label: "Syncthing URL", hint: "The GUI address, e.g. http://syncthing:8384" },
     { key: "key", label: "API key", secret: true, hint: "Settings → General → API Key." },
   ],
+  gatehouse: [
+    {
+      key: "url",
+      label: "Gatehouse admin URL",
+      hint: "The admin port, e.g. http://gatehouse:8081",
+    },
+    {
+      key: "key",
+      label: "Token",
+      secret: true,
+      hint: "GATEHOUSE_TOKEN, or ${ENV_VAR} to read it from the environment.",
+    },
+    {
+      key: "warn_days",
+      label: "Warn before expiry (days)",
+      number: true,
+      hint: "Default: Gatehouse's own setting.",
+    },
+  ],
   npm: [
     { key: "url", label: "NPM admin URL", hint: "The admin port, e.g. http://npm:81" },
     { key: "email", label: "Email" },
@@ -101,6 +120,7 @@ const WIDGET_LABELS: Record<string, string> = {
   kopia: "Kopia backups",
   syncthing: "Syncthing",
   npm: "Nginx Proxy Manager",
+  gatehouse: "Gatehouse",
   komodo: "Komodo",
 };
 
@@ -728,13 +748,13 @@ function AlertsEditor(props: { alerts: Alerts; onChange: (patch: Partial<Alerts>
         onChange={(v) => onChange({ sync: v })}
       />
       <Toggle
-        label="An NPM certificate is close to expiry"
+        label="A proxy certificate is close to expiry"
         checked={a.certificates}
         onChange={(v) => onChange({ certificates: v })}
       />
       <p class="field-hint">
         You get one message when something goes wrong and one when it recovers. Kopia, Syncthing and
-        NPM are checked every 5 minutes through their widgets.
+        the reverse proxy (Gatehouse or NPM) are checked every 5 minutes through their widgets.
       </p>
 
       {recent && (recent.open.length > 0 || events.length > 0) && (

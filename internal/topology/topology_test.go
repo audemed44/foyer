@@ -170,3 +170,29 @@ func TestStorageHoldingSeveralSyncedFolders(t *testing.T) {
 		t.Fatalf("storage: %+v", g.Storage)
 	}
 }
+
+func TestSleepingAppsAreNotIssues(t *testing.T) {
+	cfg := config.Default()
+	g := Build(Input{
+		Config: cfg, Containers: containers, Details: details,
+		NPM: &widgets.NPMData{WarnDays: 14, Hosts: []widgets.ProxyHost{
+			{Domains: []string{"sync.example.com"}, Scheme: "http", ForwardHost: "syncthing", ForwardPort: 8384, Enabled: true, State: "sleeping"},
+			{Domains: []string{"awake.example.com"}, Scheme: "http", ForwardHost: "syncthing", ForwardPort: 8384, Enabled: true, State: "awake"},
+		}},
+	})
+	for _, i := range g.Issues {
+		if strings.Contains(i.Text, "sync.example.com") {
+			t.Fatalf("a sleeping app counted as an issue: %+v", i)
+		}
+	}
+	if g.Domains[1].Sleep != "sleeping" || g.Domains[0].Sleep != "" {
+		t.Fatalf("domains: %+v", g.Domains)
+	}
+	found := false
+	for _, i := range g.Issues {
+		found = found || strings.Contains(i.Text, "awake.example.com forwards to syncthing, which is exited")
+	}
+	if !found {
+		t.Fatalf("an awake app on a stopped container should still be an issue: %+v", g.Issues)
+	}
+}

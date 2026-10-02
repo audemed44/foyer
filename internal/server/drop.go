@@ -198,14 +198,14 @@ func (s *Server) accepting(ctx context.Context) ([]dropTarget, map[string]*widge
 		rules   = map[string]*widgets.AppAccepts{}
 	)
 	for _, svc := range cfg.Services() {
-		if svc.Widget == nil || svc.Widget.Type() != "app" {
+		if svc.Widget == nil || !widgets.IsApp(svc.Widget) {
 			continue
 		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			data, err := s.widgets.Fetch(ctx, svc.ID, svc.Widget)
-			app, ok := data.(widgets.AppWidget)
+			app, ok := widgets.AsApp(data)
 			if err != nil || !ok || app.Accepts == nil {
 				return
 			}

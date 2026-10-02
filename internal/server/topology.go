@@ -16,10 +16,16 @@ import (
 // integration fetches the data of the first service with a widget of the
 // given type (through the widget cache). svc is nil when there's none.
 func (s *Server) integration(ctx context.Context, cfg config.Config, kind string) (svc *config.Service, data any, err error) {
-	for _, candidate := range cfg.Services() {
-		if candidate.Widget != nil && candidate.Widget.Type() == kind {
-			data, err = s.widgets.Fetch(ctx, candidate.ID, candidate.Widget)
-			return candidate, data, err
+	kinds := []string{kind}
+	if kind == "proxy" {
+		kinds = []string{"gatehouse", "npm"} // Gatehouse wins if both are set up
+	}
+	for _, k := range kinds {
+		for _, candidate := range cfg.Services() {
+			if candidate.Widget != nil && candidate.Widget.Type() == k {
+				data, err = s.widgets.Fetch(ctx, candidate.ID, candidate.Widget)
+				return candidate, data, err
+			}
 		}
 	}
 	return nil, nil, nil
@@ -70,7 +76,7 @@ func (s *Server) getTopology(w http.ResponseWriter, r *http.Request) {
 	var npmData, kopiaData, syncData any
 	var npmErr, kopiaErr, syncErr error
 	wg.Add(3)
-	go func() { defer wg.Done(); npmSvc, npmData, npmErr = s.integration(ctx, cfg, "npm") }()
+	go func() { defer wg.Done(); npmSvc, npmData, npmErr = s.integration(ctx, cfg, "proxy") }()
 	go func() { defer wg.Done(); kopiaSvc, kopiaData, kopiaErr = s.integration(ctx, cfg, "kopia") }()
 	go func() { defer wg.Done(); syncSvc, syncData, syncErr = s.integration(ctx, cfg, "syncthing") }()
 
@@ -99,7 +105,7 @@ func (s *Server) getTopology(w http.ResponseWriter, r *http.Request) {
 
 	if npmSvc != nil {
 		in.Sources.NPM = errText(npmErr)
-		if d, ok := npmData.(widgets.NPMData); ok {
+		if d, ok := widgets.AsProxy(npmData); ok {
 			in.NPM = &d
 		}
 	}
@@ -120,12 +126,13 @@ func (s *Server) getTopology(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, topology.Build(in))
 }
 
-// npmLinks maps container names to the public URL NPM serves them at, for
-// discovery. It's empty without an NPM widget.
+// npmLinks maps container names to the public URL the reverse proxy
+// (Gatehouse or NPM) serves them at, for discovery. It's empty without a
+// proxy widget.
 func (s *Server) npmLinks(ctx context.Context, cfg config.Config, list []docker.Container) map[string]string {
 	links := map[string]string{}
-	_, data, err := s.integration(ctx, cfg, "npm")
-	npm, ok := data.(widgets.NPMData)
+	_, data, err := s.integration(ctx, cfg, "proxy")
+	npm, ok := widgets.AsProxy(data)
 	if err != nil || !ok {
 		return links
 	}
