@@ -24,6 +24,8 @@ type ProxyHost struct {
 	// State is Gatehouse's scale-to-zero state: awake, sleeping, waking or
 	// stopping. Empty for NPM.
 	State string `json:"state,omitempty"`
+	// Container is the one Gatehouse stops and starts for scale-to-zero.
+	Container string `json:"container,omitempty"`
 }
 
 type Certificate struct {

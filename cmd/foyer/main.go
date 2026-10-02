@@ -71,6 +71,7 @@ func main() {
 	app := server.New(store, mon, dock, configDir, dist)
 	app.Sweep()
 	mon.AfterCheck = app.CheckAlerts
+	mon.Watched = app.WatchedByLookout
 	srv := &http.Server{
 		Addr:              ":" + env("FOYER_PORT", "8080"),
 		Handler:           app.Handler(),

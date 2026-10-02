@@ -70,6 +70,15 @@ const WIDGET_FIELDS: Record<string, WidgetField[]> = {
     { key: "url", label: "Syncthing URL", hint: "The GUI address, e.g. http://syncthing:8384" },
     { key: "key", label: "API key", secret: true, hint: "Settings → General → API Key." },
   ],
+  lookout: [
+    { key: "url", label: "Lookout URL", hint: "e.g. http://lookout:8080" },
+    {
+      key: "key",
+      label: "Token",
+      secret: true,
+      hint: "LOOKOUT_TOKEN, or ${ENV_VAR}. Lookout's checks then become the services' status.",
+    },
+  ],
   gatehouse: [
     {
       key: "url",
@@ -121,6 +130,7 @@ const WIDGET_LABELS: Record<string, string> = {
   syncthing: "Syncthing",
   npm: "Nginx Proxy Manager",
   gatehouse: "Gatehouse",
+  lookout: "Lookout",
   komodo: "Komodo",
 };
 

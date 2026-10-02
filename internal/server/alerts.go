@@ -41,7 +41,7 @@ func (s *Server) CheckAlerts(ctx context.Context) {
 	var problems []alerts.Problem
 	if a.Services {
 		scope = append(scope, "service:")
-		problems = append(problems, s.serviceProblems(cfg)...)
+		problems = append(problems, s.serviceProblems(ctx, cfg)...)
 	}
 	if a.Containers {
 		scope = append(scope, "container:")
@@ -78,12 +78,17 @@ func (s *Server) CheckAlerts(ctx context.Context) {
 	s.alerts.Evaluate(ctx, a, scope, problems)
 }
 
-func (s *Server) serviceProblems(cfg config.Config) []alerts.Problem {
+// serviceProblems leaves out services Lookout watches (it alerts on them
+// itself) and apps Gatehouse put to sleep.
+func (s *Server) serviceProblems(ctx context.Context, cfg config.Config) []alerts.Problem {
 	var out []alerts.Problem
-	status := s.monitor.Status()
+	status := s.serviceStatus(ctx)
 	down := max(1, cfg.Alerts.DownAfter)
 	for _, svc := range cfg.Services() {
 		st := status[svc.ID]
+		if st.Check != nil || (st.Container != nil && st.Container.State == "asleep") {
+			continue
+		}
 		p := alerts.Problem{Key: "service:" + svc.ID, Level: "failure", After: down,
 			Recovered: svc.Name + " is back up"}
 		switch {
@@ -121,6 +126,9 @@ func (s *Server) containerProblems(ctx context.Context, cfg config.Config) []ale
 		return nil
 	}
 	covered := map[string]bool{}
+	for name := range s.asleepContainers(ctx, cfg) {
+		covered[name] = true // stopped on purpose by Gatehouse
+	}
 	for _, st := range s.monitor.Status() {
 		if st.Container != nil {
 			covered[st.Container.Name] = true

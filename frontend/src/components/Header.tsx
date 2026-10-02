@@ -46,7 +46,7 @@ function Stats({ config, status }: { config: Config; status: StatusMap | null })
   const opts = config.header.system;
   const { data } = usePoll<SystemStats>(api.system, 5000);
 
-  const { up, total } = countStatus(Object.values(status ?? {}));
+  const { up, total, asleep } = countStatus(Object.values(status ?? {}));
 
   const tiles: ComponentChildren[] = [];
   if (total > 0) {
@@ -57,7 +57,10 @@ function Stats({ config, status }: { config: Config; status: StatusMap | null })
         label="Online"
         value={String(up)}
         unit={`/${total}`}
-        sub={up === total ? "all services up" : `${total - up} down`}
+        sub={
+          (up === total ? "all services up" : `${total - up} down`) +
+          (asleep ? ` · ${asleep} asleep` : "")
+        }
         tone={up === total ? "" : "bad"}
       />,
     );

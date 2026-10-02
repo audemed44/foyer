@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   countStatus,
+  statusInfo,
   dayLabel,
   fileExt,
   groupSpan,
@@ -102,7 +103,22 @@ describe("countStatus", () => {
   it("counts container-only services and skips ones with no known state", () => {
     const running = { container: { name: "a", state: "running", status: "Up" } };
     const exited = { container: { name: "b", state: "exited", status: "Exited" } };
-    expect(countStatus([running, exited, {}, undefined])).toEqual({ up: 1, total: 2 });
+    expect(countStatus([running, exited, {}, undefined])).toEqual({ up: 1, total: 2, asleep: 0 });
+  });
+  it("takes Lookout's check over the container, and counts asleep apps as up", () => {
+    const exited = { name: "c", state: "exited", status: "Exited" };
+    const asleepByLookout = { container: exited, check: { name: "C", state: "asleep" } };
+    const asleepByGatehouse = { container: { ...exited, state: "asleep" } };
+    const down = { check: { name: "D", state: "down", message: "HTTP 502" } };
+    const up = { check: { name: "U", state: "up", latency_ms: 12 } };
+    expect(statusInfo(asleepByLookout)).toEqual({ tone: "accent", label: "asleep" });
+    expect(statusInfo(down)).toEqual({ tone: "bad", label: "HTTP 502" });
+    expect(statusInfo(up)).toEqual({ tone: "good", label: "12ms" });
+    expect(countStatus([asleepByLookout, asleepByGatehouse, down, up])).toEqual({
+      up: 3,
+      total: 4,
+      asleep: 2,
+    });
   });
 });
 

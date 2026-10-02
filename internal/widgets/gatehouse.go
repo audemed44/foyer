@@ -43,6 +43,7 @@ func gatehouse(ctx context.Context, w config.Widget) (any, error) {
 			Enabled     bool     `json:"enabled"`
 			HTTPS       bool     `json:"https"`
 			Certificate string   `json:"certificate"`
+			Container   string   `json:"container"`
 			State       string   `json:"state"`
 		} `json:"hosts"`
 		Redirects    []struct{} `json:"redirects"`
@@ -65,7 +66,7 @@ func gatehouse(ctx context.Context, w config.Widget) (any, error) {
 	for _, h := range d.Hosts {
 		ph := ProxyHost{
 			Domains: h.Domains, Scheme: h.Scheme, ForwardHost: h.ForwardHost, ForwardPort: h.ForwardPort,
-			Enabled: h.Enabled, SSL: h.HTTPS, Certificate: h.Certificate, State: h.State,
+			Enabled: h.Enabled, SSL: h.HTTPS, Certificate: h.Certificate, State: h.State, Container: h.Container,
 		}
 		if !ph.Enabled {
 			p.Disabled++
@@ -95,7 +96,7 @@ func gatehouse(ctx context.Context, w config.Widget) (any, error) {
 // actions and uploads.
 func IsApp(w config.Widget) bool {
 	t := w.Type()
-	return t == "app" || t == "gatehouse"
+	return t == "app" || t == "gatehouse" || t == "lookout"
 }
 
 // AsApp returns the app card in a widget's data.
@@ -104,6 +105,8 @@ func AsApp(data any) (AppWidget, bool) {
 	case AppWidget:
 		return d, true
 	case GatehouseData:
+		return d.AppWidget, true
+	case LookoutData:
 		return d.AppWidget, true
 	}
 	return AppWidget{}, false
