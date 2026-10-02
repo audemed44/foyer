@@ -140,8 +140,8 @@ func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, saved.Masked())
 }
 
-func (s *Server) getStatus(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, s.monitor.Status())
+func (s *Server) getStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.serviceStatus(r.Context()))
 }
 
 func (s *Server) getSystem(w http.ResponseWriter, _ *http.Request) {

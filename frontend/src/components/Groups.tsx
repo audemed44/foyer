@@ -243,7 +243,10 @@ function ServiceCard(props: {
     .join("\n");
 
   const tint = useTint(iconUrl(service.icon));
-  const latency = info?.tone === "good" && props.status?.ping ? info.label : null;
+  const latency =
+    info?.tone === "good" && (props.status?.ping || props.status?.check?.latency_ms)
+      ? info.label
+      : null;
   const container = props.container;
   const memory = container?.stats ? formatBytes(container.stats.mem_used) : null;
   const hoverInfo = [latency, memory].filter(Boolean).join(" · ");

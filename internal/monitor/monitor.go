@@ -36,6 +36,17 @@ type Container struct {
 type ServiceStatus struct {
 	Ping      *Ping      `json:"ping,omitempty"`
 	Container *Container `json:"container,omitempty"`
+	// Check is the service's status from Lookout, when Lookout watches it;
+	// it wins over the ping and container state.
+	Check *Check `json:"check,omitempty"`
+}
+
+// Check is a Lookout check's status.
+type Check struct {
+	Name      string `json:"name"`
+	State     string `json:"state"` // up, down, pending, asleep, paused, maintenance, unknown
+	Message   string `json:"message,omitempty"`
+	LatencyMS int64  `json:"latency_ms,omitempty"`
 }
 
 type Monitor struct {
@@ -47,6 +58,9 @@ type Monitor struct {
 	// AfterCheck, when set, runs after each round of service checks (alerts
 	// use it, so every check counts exactly once).
 	AfterCheck func(ctx context.Context)
+	// Watched, when set, lists services another monitor (Lookout) checks;
+	// they aren't pinged.
+	Watched func(ctx context.Context) map[string]bool
 
 	mu         sync.RWMutex
 	pings      map[string]Ping // by ping URL, so renames don't lose results
@@ -140,8 +154,12 @@ func shortError(err error) string {
 
 func (m *Monitor) checkServices(ctx context.Context) {
 	urls := map[string]bool{}
+	var watched map[string]bool
+	if m.Watched != nil {
+		watched = m.Watched(ctx)
+	}
 	for _, s := range m.store.Config().Services() {
-		if s.Ping != "" {
+		if s.Ping != "" && !watched[s.ID] {
 			urls[config.ExpandEnv(s.Ping)] = true
 		}
 	}

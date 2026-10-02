@@ -164,8 +164,25 @@ export function linkedContainers(config: Config): Set<string> {
 }
 
 export function statusInfo(st?: ServiceStatus): { tone: string; label: string } | null {
+  const k = st?.check;
+  if (k) {
+    // Lookout watches it: its check is the status.
+    switch (k.state) {
+      case "up":
+      case "running":
+        return { tone: "good", label: k.latency_ms ? `${k.latency_ms}ms` : "up" };
+      case "down":
+        return { tone: "bad", label: k.message || "down" };
+      case "pending":
+        return { tone: "warn", label: k.message || "retrying" };
+      case "asleep":
+        return { tone: "accent", label: "asleep" };
+    }
+    return { tone: "", label: k.state }; // paused, maintenance, not checked yet
+  }
   const c = st?.container;
   const p = st?.ping;
+  if (c?.state === "asleep") return { tone: "accent", label: "asleep" };
   if (p?.state === "down") return { tone: "bad", label: p.error ?? `HTTP ${p.code}` };
   if (c && c.state !== "running") return { tone: "bad", label: c.state };
   if (c?.health === "unhealthy") return { tone: "warn", label: "unhealthy" };
@@ -179,16 +196,19 @@ export function statusInfo(st?: ServiceStatus): { tone: string; label: string } 
 export function countStatus(statuses: (ServiceStatus | undefined)[]): {
   up: number;
   total: number;
+  asleep: number;
 } {
   let up = 0;
   let total = 0;
+  let asleep = 0;
   for (const st of statuses) {
     const info = statusInfo(st);
     if (!info) continue;
     total++;
     if (info.tone !== "bad") up++;
+    if (info.label === "asleep") asleep++;
   }
-  return { up, total };
+  return { up, total, asleep };
 }
 
 /** "Today", "Yesterday", or a date like "Mon 28 Sep". */

@@ -100,7 +100,9 @@ export type Ping = {
 };
 
 export type ContainerState = { name: string; state: string; status: string; health?: string };
-export type ServiceStatus = { ping?: Ping; container?: ContainerState };
+/** A Lookout check's status; when present it decides the service's state. */
+export type CheckState = { name: string; state: string; message?: string; latency_ms?: number };
+export type ServiceStatus = { ping?: Ping; container?: ContainerState; check?: CheckState };
 export type StatusMap = Record<string, ServiceStatus>;
 
 export type SystemStats = {
