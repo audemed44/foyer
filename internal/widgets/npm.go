@@ -21,6 +21,9 @@ type ProxyHost struct {
 	Certificate string   `json:"certificate,omitempty"`
 	// Error is nginx's complaint about this host's config, if any.
 	Error string `json:"error,omitempty"`
+	// State is Gatehouse's scale-to-zero state: awake, sleeping, waking or
+	// stopping. Empty for NPM.
+	State string `json:"state,omitempty"`
 }
 
 type Certificate struct {

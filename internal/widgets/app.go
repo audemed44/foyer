@@ -204,7 +204,7 @@ var errNotImage = errors.New("not an image")
 // data) to the browser, so the app's internal address stays private. Only
 // same-origin paths are allowed.
 func ProxyImage(ctx context.Context, w config.Widget, path string, dst http.ResponseWriter) error {
-	if w.Type() != "app" || !relativePath(path) {
+	if !IsApp(w) || !relativePath(path) {
 		return fmt.Errorf("invalid image path")
 	}
 	base, err := url.Parse(config.ExpandEnv(w.String("url")))

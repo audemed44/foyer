@@ -68,7 +68,7 @@ export function TopologyPage({ onLogs }: { onLogs: (name: string) => void }) {
         <Figure
           value={String(data.domains.length)}
           label="Domains"
-          caption={data.sources.npm === undefined ? "Add an NPM widget" : undefined}
+          caption={data.sources.npm === undefined ? "Add a Gatehouse widget" : undefined}
         />
         <Figure
           value={String(running)}
@@ -165,12 +165,12 @@ function SourceNotes({ sources }: { sources: Topology["sources"] }) {
   const notes: string[] = [];
   const failed = (name: string, err?: string) => err && notes.push(`${name}: ${err}`);
   failed("Docker", sources.docker);
-  failed("Nginx Proxy Manager", sources.npm);
+  failed("Reverse proxy", sources.npm);
   failed("Kopia", sources.kopia);
   failed("Syncthing", sources.syncthing);
   if (sources.docker === undefined) notes.push("Mount the Docker socket to see containers.");
   if (sources.npm === undefined)
-    notes.push("Add an Nginx Proxy Manager widget to a service to map your domains.");
+    notes.push("Add a Gatehouse (or Nginx Proxy Manager) widget to a service to map your domains.");
   if (sources.kopia === undefined) notes.push("Add a Kopia widget to see which data is backed up.");
   if (!notes.length) return null;
   return (
@@ -337,7 +337,7 @@ function containerIcon(c: TopoContainer): string {
 }
 
 function DomainBody({ d }: { d: TopoDomain }) {
-  const tone = !d.enabled ? "" : !d.target || d.error ? "bad" : "good";
+  const tone = !d.enabled ? "" : d.sleep ? "accent" : !d.target || d.error ? "bad" : "good";
   const cert =
     d.cert_days !== undefined && d.cert_days < 14 ? (
       <span class={`topo-badge ${d.cert_days < 3 ? "bad" : "warn"}`}>cert {d.cert_days}d</span>
@@ -360,6 +360,7 @@ function DomainBody({ d }: { d: TopoDomain }) {
           {d.enabled ? d.forward.replace(/^https?:\/\//, "→ ") : "disabled"}
         </span>
       </span>
+      {d.sleep && <span class="topo-badge">{d.sleep}</span>}
       {cert}
       <span class={`dot ${tone}`} />
     </>

@@ -181,6 +181,7 @@ export type TopoDomain = {
   forward: string;
   ssl: boolean;
   cert_days?: number;
+  sleep?: string; // Gatehouse scale-to-zero: sleeping, waking or stopping
   enabled: boolean;
   error?: string;
   target?: string;

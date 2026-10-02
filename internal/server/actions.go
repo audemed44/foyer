@@ -71,12 +71,12 @@ func (s *Server) runWidgetAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	svc := s.store.Config().Service(r.PathValue("id"))
-	if svc == nil || svc.Widget == nil || svc.Widget.Type() != "app" {
+	if svc == nil || svc.Widget == nil || !widgets.IsApp(svc.Widget) {
 		writeError(w, http.StatusNotFound, "no such widget")
 		return
 	}
 	data, err := s.widgets.Fetch(r.Context(), svc.ID, svc.Widget)
-	app, ok := data.(widgets.AppWidget)
+	app, ok := widgets.AsApp(data)
 	if err != nil || !ok || !app.HasAction(body.URL) {
 		writeError(w, http.StatusBadRequest, svc.Name+" doesn't offer that action")
 		return
