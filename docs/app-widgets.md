@@ -68,7 +68,8 @@ Every section is optional:
 ## Actions
 
 An item can carry a button (`action`): [Hoist](https://github.com/audemed44/hoist)
-puts **Deploy** on each stack.
+puts **Deploy** on each stack, and **Merge & deploy** on each pull request
+that's ready.
 
 - Clicking it shows `confirm`, when there is one, then Foyer POSTs `{}` to
   `url` on the app's own address (taken from the widget URL), with the
@@ -91,6 +92,9 @@ puts **Deploy** on each stack.
   `state` is `running`, `done` or `failed`. Polling survives Foyer or the
   app restarting midway, so a deploy that recreates Foyer itself still
   reports back.
+- Foyer keeps following an action while the card refreshes, as long as an
+  item with the same `title` and `url` is still there, even without its
+  button (Hoist's merged pull request stays as its merge and deploy).
 - When the action ends, the card reloads to show what changed. `url`
   resolves against the service's link, like item URLs.
 

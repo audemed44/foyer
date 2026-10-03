@@ -282,7 +282,7 @@ function AppWidget({
         <div class="app-items">
           {data.items_title && <p class="eyebrow eyebrow-accent">{data.items_title}</p>}
           <ul class={data.items_layout === "covers" ? "app-covers" : "app-list"}>
-            {data.items.map((it, i) => {
+            {data.items.map((it) => {
               const href = itemHref(it.url, service);
               const src = image(it.image);
               const body = (
@@ -314,20 +314,19 @@ function AppWidget({
               ) : (
                 <div class="app-item">{body}</div>
               );
+              // Keyed by what the item is, so an action keeps being followed
+              // when the refreshed card moves the item or drops its button
+              // (Hoist's Merge & deploy: the merged pull request).
               return (
-                <li key={i}>
-                  {it.action ? (
-                    <ItemAction
-                      service={service}
-                      action={it.action}
-                      title={it.title}
-                      onDone={onChange}
-                    >
-                      {item}
-                    </ItemAction>
-                  ) : (
-                    item
-                  )}
+                <li key={`${it.title}\u0000${it.url ?? ""}`}>
+                  <ItemAction
+                    service={service}
+                    action={it.action}
+                    title={it.title}
+                    onDone={onChange}
+                  >
+                    {item}
+                  </ItemAction>
                 </li>
               );
             })}
@@ -342,11 +341,12 @@ function AppWidget({
  * A button an app put on an item (Hoist's Deploy on a stack). Foyer runs it
  * against the app and follows it while the app says it's running; the app
  * may be something Foyer itself depends on (a deploy can restart Foyer), so
- * failed polls are retried rather than reported.
+ * failed polls are retried rather than reported. An item without a button
+ * still shows how an action it had ended.
  */
 function ItemAction(props: {
   service: Service;
-  action: AppAction;
+  action?: AppAction;
   title: string;
   /** Called when the action has finished, to reload the card. */
   onDone: () => void;
@@ -380,6 +380,7 @@ function ItemAction(props: {
   };
 
   const run = async () => {
+    if (!action) return;
     setConfirming(false);
     setError("");
     setResult({ state: "running", message: "Starting…" });
@@ -396,18 +397,21 @@ function ItemAction(props: {
 
   const tone = error || result?.state === "failed" ? "bad" : result?.state === "done" ? "good" : "";
   const message = error || result?.message;
+  if (!action && !message) return <>{props.children}</>;
   return (
     <>
       <div class="app-item-row">
         {props.children}
-        <button
-          class="btn app-action"
-          disabled={running}
-          onClick={() => (action.confirm ? setConfirming(true) : run())}
-        >
-          {running && <LoaderCircle size={13} class="spin" />}
-          {action.label}
-        </button>
+        {action && (
+          <button
+            class="btn app-action"
+            disabled={running}
+            onClick={() => (action.confirm ? setConfirming(true) : run())}
+          >
+            {running && <LoaderCircle size={13} class="spin" />}
+            {action.label}
+          </button>
+        )}
       </div>
       {message && (
         <p class={`app-action-note ${tone}`}>
@@ -422,7 +426,7 @@ function ItemAction(props: {
           )}
         </p>
       )}
-      {confirming && (
+      {confirming && action && (
         <Dialog
           title={`${action.label}: ${props.title}`}
           onClose={() => setConfirming(false)}
