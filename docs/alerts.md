@@ -20,7 +20,7 @@ alerts:
   down_after: 2        # failed checks in a row before a service is down
   services: true       # dashboard services down or unhealthy
   containers: false    # any other container crashing, restart-looping or unhealthy
-  backups: true        # Kopia sources overdue, never backed up, or skipping files
+  backups: true        # backup sources (Keep or Kopia) overdue, never backed up, or failing
   sync: true           # Syncthing folder errors
   certificates: true   # NPM certificates within the widget's warn_days
 ```
@@ -34,11 +34,11 @@ Each problem sends **one** message when it starts and one when it clears
 |---|---|---|
 | A service is down or unhealthy | Every `ping_interval`, after `down_after` failures | A `ping` or `container` on the service |
 | Another container crashed (non-zero exit), restart-loops or is unhealthy | Every `ping_interval` | The Docker socket |
-| A Kopia source is overdue, never backed up, or skipped files | Every 5 minutes | A [Kopia widget](widgets.md#kopia) |
+| A backup source is overdue, never backed up, or failing | Every 5 minutes | A [Keep](widgets.md#keep) or [Kopia widget](widgets.md#kopia) |
 | A Syncthing folder has errors | Every 5 minutes | A [Syncthing widget](widgets.md#syncthing) |
 | A certificate in use is within `warn_days` of expiry | Every 5 minutes | An [NPM widget](widgets.md#nginx-proxy-manager) |
 
-Kopia, Syncthing and NPM are only polled while alerts are on. If one of them
+Keep or Kopia, Syncthing and NPM are only polled while alerts are on. If one of them
 can't be reached, that's an alert too.
 
 Open problems are kept in `/config/alerts.json`, so restarting Foyer

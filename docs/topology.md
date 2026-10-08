@@ -9,11 +9,12 @@ columns:
    certificate.
 2. **Containers**, grouped by compose project.
 3. **Storage**: the folders and volumes each container mounts, marked with
-   whether a Kopia snapshot covers them and which Syncthing folder they're
-   in.
+   whether a backup (Keep or Kopia) covers them and which Syncthing folder
+   they're in.
 
 It needs the Docker socket; the [Nginx Proxy Manager](widgets.md#nginx-proxy-manager),
-[Kopia](widgets.md#kopia) and [Syncthing](widgets.md#syncthing) widgets each
+[Keep](widgets.md#keep) (or [Kopia](widgets.md#kopia)) and
+[Syncthing](widgets.md#syncthing) widgets each
 add their layer, and the page says which ones are missing.
 
 ## Reading the map
@@ -37,7 +38,12 @@ can be shown or hidden.
 - One that forwards to `host.docker.internal` or an IP is matched to the
   container that **publishes that port**; if none does, it's shown as
   running on **this host** (Cockpit, code-server and the like).
-- **Kopia** reports its snapshot paths as the Kopia container sees them
+- **Keep** reports each source as a host path, or as the Docker volume a
+  database dump covers, so dumped volumes count as backed up too. A source
+  with its own excludes counts as partly backed up. Keep's own read-write
+  mount of the stack doesn't count as an app writing there.
+- **Kopia** (when there's no Keep widget) reports its snapshot paths as the
+  Kopia container sees them
   (`/data/appdata`). Foyer translates them through the Kopia container's own
   mounts (`/srv → /data`) into host paths, and marks every folder inside a
   snapshot as backed up, folders that contain a snapshot as partly backed
