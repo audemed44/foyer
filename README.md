@@ -9,7 +9,7 @@ serving a Preact frontend, **~7 MB of RAM** at idle, in a 20 MB image.
 - **Services** in numbered groups, with live up/down checks, Docker
   container state and memory use; one search box for your apps and the web
 - **Host stats**: CPU and memory sparklines, disks, temperature, uptime
-- **Widgets** for Kopia, Syncthing, Nginx Proxy Manager, Komodo, Uptime
+- **Widgets** for Keep, Kopia, Syncthing, Nginx Proxy Manager, Komodo, Uptime
   Kuma, Speedtest Tracker and iCal calendars, plus app widgets: any app can
   describe its own card ([Shelfloom](https://github.com/audemed44/shelfloom) does)
 - **Containers and live logs**: every container with CPU, memory and

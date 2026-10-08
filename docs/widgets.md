@@ -33,6 +33,7 @@ type a new value. To keep them out of `foyer.yaml` entirely, write
 | Widget | Type | Shows |
 |---|---|---|
 | [App (Foyer widget format)](#app-widgets) | `app` | Whatever the app describes |
+| [Keep](#keep) | `keep` | Keep's card with Run now; its sources feed the map and alerts |
 | [Kopia](#kopia) | `kopia` | Backup freshness per snapshot source |
 | [Syncthing](#syncthing) | `syncthing` | Folder sync state, devices online |
 | [Nginx Proxy Manager](#nginx-proxy-manager) | `npm` | Proxy hosts, certificate expiry |
@@ -55,6 +56,20 @@ figures, progress bars and a row of covers or a list. Shelfloom serves one.
 
 You rarely type this: in edit mode Foyer checks the apps on your dashboard
 for `/api/foyer/widget` and offers to add the widget.
+
+## Keep
+
+[Keep](https://github.com/audemed44/keep) runs the homelab's backups (with
+Kopia doing the storage). Its widget is Keep's own card, with the last run,
+sources backed up, repository size, next run and a **Run now** button. Keep
+also tells Foyer every source as a host path or Docker volume, so the
+[topology map](topology.md) and the backup [alerts](alerts.md) use Keep
+instead of Kopia when both are set up.
+
+| Setting | |
+|---|---|
+| `url` | Keep's address, e.g. `http://keep:8080` |
+| `key` | `KEEP_TOKEN` |
 
 ## Kopia
 
