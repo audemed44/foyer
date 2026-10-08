@@ -72,7 +72,7 @@ func (s *Server) CheckAlerts(ctx context.Context) {
 		}
 		problems = append(problems, check(data)...)
 	}
-	add(a.Backups, "backup:", "kopia", backupProblems)
+	add(a.Backups, "backup:", "backup", backupProblems)
 	add(a.Sync, "sync:", "syncthing", syncProblems)
 	add(a.Certificates, "cert:", "proxy", certProblems)
 	s.alerts.Evaluate(ctx, a, scope, problems)
@@ -158,32 +158,48 @@ func (s *Server) containerProblems(ctx context.Context, cfg config.Config) []ale
 }
 
 func backupProblems(data any) []alerts.Problem {
-	d, ok := data.(widgets.KopiaData)
+	d, ok := widgets.AsBackup(data)
 	if !ok {
 		return nil
 	}
+	tool := "Kopia has no snapshot of it."
+	if d.Engine == "keep" {
+		tool = "Keep has no good backup of it."
+	}
 	var out []alerts.Problem
 	for _, src := range d.Sources {
-		p := alerts.Problem{Key: "backup:" + src.Host + ":" + src.Path, Level: "failure",
-			Recovered: "Backups of " + src.Path + " are running again"}
+		name := src.Label
+		p := alerts.Problem{Key: "backup:" + src.Key, Level: "failure",
+			Recovered: "Backups of " + name + " are running again"}
 		switch src.State {
 		case "stale":
-			p.Title = "The backup of " + src.Path + " is overdue"
+			p.Title = "The backup of " + name + " is overdue"
 			if src.Last != nil {
-				p.Body = "The last snapshot finished " + time.Since(*src.Last).Round(time.Hour).String() + " ago."
+				p.Body = "The last good backup finished " + time.Since(*src.Last).Round(time.Hour).String() + " ago."
 			}
 		case "never":
-			p.Title, p.Body = src.Path+" has never been backed up", "Kopia has no snapshot of it."
+			p.Title, p.Body = name+" has never been backed up", tool
 		case "errors":
-			p.Title, p.Level = "The backup of "+src.Path+" skipped files", "warning"
-			p.Body = fmt.Sprintf("%d files failed in the last snapshot.", src.Errors)
-			p.Recovered = "The backup of " + src.Path + " is complete again"
+			p.Title, p.Level = "The backup of "+name+" had problems", "warning"
+			if src.Errors > 0 {
+				p.Body = fmt.Sprintf("%d files failed in the last snapshot.", src.Errors)
+			} else {
+				p.Body = "The last backup failed or warned; see " + backupTool(d.Engine) + "."
+			}
+			p.Recovered = "The backup of " + name + " is complete again"
 		default:
 			continue
 		}
 		out = append(out, p)
 	}
 	return out
+}
+
+func backupTool(engine string) string {
+	if engine == "keep" {
+		return "Keep's run log"
+	}
+	return "Kopia"
 }
 
 func syncProblems(data any) []alerts.Problem {

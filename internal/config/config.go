@@ -110,7 +110,7 @@ type Alerts struct {
 	DownAfter    int  `yaml:"down_after" json:"down_after"`
 	Services     bool `yaml:"services" json:"services"`         // dashboard services down / unhealthy
 	Containers   bool `yaml:"containers" json:"containers"`     // any container crashing or unhealthy
-	Backups      bool `yaml:"backups" json:"backups"`           // Kopia sources stale or failing
+	Backups      bool `yaml:"backups" json:"backups"`           // backup sources (Keep or Kopia) stale or failing
 	Sync         bool `yaml:"sync" json:"sync"`                 // Syncthing folder errors
 	Certificates bool `yaml:"certificates" json:"certificates"` // NPM certificates near expiry
 }
