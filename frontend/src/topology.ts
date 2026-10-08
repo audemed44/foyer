@@ -136,14 +136,17 @@ export function shortPath(p: string): string {
 }
 
 /** How a storage node's protection reads, for its badge. */
-export function protection(s: TopoStorage, kopia: boolean): { tone: string; label: string } | null {
+export function protection(
+  s: TopoStorage,
+  backups: boolean,
+): { tone: string; label: string } | null {
   if (s.backup && !s.backup.partial) {
     if (s.backup.state === "ok" || s.backup.state === "running")
       return { tone: "good", label: "Backed up" };
     if (s.backup.state === "errors") return { tone: "warn", label: "Backup has errors" };
     return { tone: "bad", label: `Backup ${s.backup.state}` };
   }
-  if (!kopia || s.class !== "data" || !s.written) return null;
+  if (!backups || s.class !== "data" || !s.written) return null;
   if (s.backup?.partial) return { tone: "warn", label: "Partly backed up" };
   return { tone: "warn", label: "No backup" };
 }

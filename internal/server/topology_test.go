@@ -65,7 +65,7 @@ func TestTopologyEndpoint(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &g); err != nil {
 		t.Fatal(err, rec.Body.String())
 	}
-	if g.Sources.Docker == nil || *g.Sources.Docker != "" || g.Sources.NPM == nil || g.Sources.Kopia != nil {
+	if g.Sources.Docker == nil || *g.Sources.Docker != "" || g.Sources.NPM == nil || g.Sources.Backup != nil {
 		t.Fatalf("sources: %+v", g.Sources)
 	}
 	if len(g.Domains) != 2 || g.Domains[1].Target != "c:web" || g.Domains[0].Target != "" {
