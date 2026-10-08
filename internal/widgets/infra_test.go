@@ -260,3 +260,52 @@ func TestGatehouseReadsCardAndDiscovery(t *testing.T) {
 		t.Fatal("IsApp")
 	}
 }
+
+func TestKeepReadsCardAndBackups(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer tok" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		switch r.URL.Path {
+		case WellKnownPath:
+			fmt.Fprint(w, `{"version":1,"stats":[{"label":"Last backup","value":"3h"}],
+				"items":[{"title":"Run 4","action":{"label":"Run now","url":"/api/foyer/run"}}]}`)
+		case "/api/foyer/backups":
+			fmt.Fprint(w, `{"engine":"kopia","stale_hours":25,"sources":[
+				{"name":"ledger","path":"/home/u/stack/ledger","strategy":"sqlite","state":"ok","last":"2026-10-08T20:00:00Z","size":10},
+				{"name":"pg","volume":"pgdata","strategy":"postgres","state":"never","size":0},
+				{"name":"romm","path":"/home/u/stack/romm","strategy":"sqlite","state":"ok","partial":true}]}`)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+	got, err := keep(context.Background(), config.Widget{"type": "keep", "url": srv.URL, "key": "tok"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app, ok := AsApp(got)
+	if !ok || !app.HasAction("/api/foyer/run") {
+		t.Fatalf("card: %+v", app)
+	}
+	b, ok := AsBackup(got)
+	if !ok || b.Engine != "keep" || b.ContainerPaths || len(b.Sources) != 3 {
+		t.Fatalf("backup: %+v", b)
+	}
+	if s := b.Sources[0]; s.Key != "keep:ledger" || s.Path != "/home/u/stack/ledger" || s.Last == nil || s.State != "ok" {
+		t.Fatalf("ledger: %+v", s)
+	}
+	if b.Sources[1].Volume != "pgdata" || !b.Sources[2].Partial {
+		t.Fatalf("sources: %+v", b.Sources)
+	}
+	if _, err := keep(context.Background(), config.Widget{"type": "keep", "url": srv.URL, "key": "wrong"}); err == nil {
+		t.Fatal("a wrong key worked")
+	}
+	if !IsApp(config.Widget{"type": "keep"}) {
+		t.Fatal("IsApp")
+	}
+	if k, ok := AsBackup(KopiaData{Sources: []KopiaSource{{Host: "h", Path: "/data", State: "stale"}}}); !ok || !k.ContainerPaths || k.Sources[0].Key != "h:/data" {
+		t.Fatalf("kopia: %+v", k)
+	}
+}

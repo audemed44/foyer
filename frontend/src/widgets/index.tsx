@@ -36,6 +36,7 @@ export function WidgetBody({ service }: { service: Service }) {
     case "app":
     case "gatehouse":
     case "lookout":
+    case "keep":
       return <AppWidget data={data as AppData} service={service} onChange={refresh} />;
     case "kopia":
       return <Kopia data={data as KopiaData} />;
