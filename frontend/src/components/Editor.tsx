@@ -79,6 +79,15 @@ const WIDGET_FIELDS: Record<string, WidgetField[]> = {
       hint: "LOOKOUT_TOKEN, or ${ENV_VAR}. Lookout's checks then become the services' status.",
     },
   ],
+  keep: [
+    { key: "url", label: "Keep URL", hint: "e.g. http://keep:8080" },
+    {
+      key: "key",
+      label: "Token",
+      secret: true,
+      hint: "KEEP_TOKEN, or ${ENV_VAR}. Keep's sources then show on the map and in backup alerts.",
+    },
+  ],
   gatehouse: [
     {
       key: "url",
@@ -131,6 +140,7 @@ const WIDGET_LABELS: Record<string, string> = {
   npm: "Nginx Proxy Manager",
   gatehouse: "Gatehouse",
   lookout: "Lookout",
+  keep: "Keep backups",
   komodo: "Komodo",
 };
 
@@ -748,7 +758,7 @@ function AlertsEditor(props: { alerts: Alerts; onChange: (patch: Partial<Alerts>
         onChange={(v) => onChange({ containers: v })}
       />
       <Toggle
-        label="A Kopia backup is overdue or skipped files"
+        label="A backup (Keep or Kopia) is overdue or failing"
         checked={a.backups}
         onChange={(v) => onChange({ backups: v })}
       />
@@ -763,8 +773,9 @@ function AlertsEditor(props: { alerts: Alerts; onChange: (patch: Partial<Alerts>
         onChange={(v) => onChange({ certificates: v })}
       />
       <p class="field-hint">
-        You get one message when something goes wrong and one when it recovers. Kopia, Syncthing and
-        the reverse proxy (Gatehouse or NPM) are checked every 5 minutes through their widgets.
+        You get one message when something goes wrong and one when it recovers. Keep or Kopia,
+        Syncthing and the reverse proxy (Gatehouse or NPM) are checked every 5 minutes through their
+        widgets.
       </p>
 
       {recent && (recent.open.length > 0 || events.length > 0) && (

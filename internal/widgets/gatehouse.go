@@ -96,7 +96,7 @@ func gatehouse(ctx context.Context, w config.Widget) (any, error) {
 // actions and uploads.
 func IsApp(w config.Widget) bool {
 	t := w.Type()
-	return t == "app" || t == "gatehouse" || t == "lookout"
+	return t == "app" || t == "gatehouse" || t == "lookout" || t == "keep"
 }
 
 // AsApp returns the app card in a widget's data.
@@ -107,6 +107,8 @@ func AsApp(data any) (AppWidget, bool) {
 	case GatehouseData:
 		return d.AppWidget, true
 	case LookoutData:
+		return d.AppWidget, true
+	case KeepData:
 		return d.AppWidget, true
 	}
 	return AppWidget{}, false

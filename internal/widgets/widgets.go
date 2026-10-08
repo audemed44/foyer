@@ -34,11 +34,12 @@ var fetchers = map[string]fetcher{
 	"npm":        npm,
 	"gatehouse":  gatehouse,
 	"lookout":    lookout,
+	"keep":       keep,
 }
 
 // Types lists the supported widget types, for the editor.
 func Types() []string {
-	return []string{"app", "uptimekuma", "speedtest", "calendar", "kopia", "syncthing", "komodo", "npm", "gatehouse", "lookout"}
+	return []string{"app", "uptimekuma", "speedtest", "calendar", "kopia", "syncthing", "komodo", "npm", "gatehouse", "lookout", "keep"}
 }
 
 var ErrUnknownType = errors.New("unknown widget type")
