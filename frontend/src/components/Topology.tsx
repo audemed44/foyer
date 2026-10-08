@@ -24,8 +24,8 @@ import { Toggle } from "./ui";
 /**
  * The homelab as a map: domains (Nginx Proxy Manager hosts) on the left,
  * the containers they reach in the middle, and the folders and volumes those
- * containers keep their data in on the right, with Kopia and Syncthing
- * coverage.
+ * containers keep their data in on the right, with backup (Keep or Kopia)
+ * and Syncthing coverage.
  */
 export function TopologyPage({ onLogs }: { onLogs: (name: string) => void }) {
   const { data, error } = usePoll<Topology>(api.topology, 30000);
@@ -55,7 +55,7 @@ export function TopologyPage({ onLogs }: { onLogs: (name: string) => void }) {
     );
   }
 
-  const kopia = data.sources.kopia !== undefined;
+  const backups = data.sources.backup !== undefined;
   const running = data.containers.filter((c) => c.state === "running").length;
   const dataStores = data.storage.filter((s) => s.class === "data" && s.written);
   const protectedCount = dataStores.filter((s) => s.backup && !s.backup.partial).length;
@@ -75,7 +75,7 @@ export function TopologyPage({ onLogs }: { onLogs: (name: string) => void }) {
           unit={`/${data.containers.length}`}
           label="Containers running"
         />
-        {kopia ? (
+        {backups ? (
           <Figure
             value={String(protectedCount)}
             unit={`/${dataStores.length}`}
@@ -136,12 +136,12 @@ export function TopologyPage({ onLogs }: { onLogs: (name: string) => void }) {
       )}
 
       {narrow ? (
-        <StackedView data={data} view={view} kopia={kopia} onSelect={select} />
+        <StackedView data={data} view={view} backups={backups} onSelect={select} />
       ) : (
         <MapView
           data={data}
           view={view}
-          kopia={kopia}
+          backups={backups}
           lit={lit}
           selected={selected}
           onHover={setHover}
@@ -166,12 +166,13 @@ function SourceNotes({ sources }: { sources: Topology["sources"] }) {
   const failed = (name: string, err?: string) => err && notes.push(`${name}: ${err}`);
   failed("Docker", sources.docker);
   failed("Reverse proxy", sources.npm);
-  failed("Kopia", sources.kopia);
+  failed("Backups", sources.backup);
   failed("Syncthing", sources.syncthing);
   if (sources.docker === undefined) notes.push("Mount the Docker socket to see containers.");
   if (sources.npm === undefined)
     notes.push("Add a Gatehouse (or Nginx Proxy Manager) widget to a service to map your domains.");
-  if (sources.kopia === undefined) notes.push("Add a Kopia widget to see which data is backed up.");
+  if (sources.backup === undefined)
+    notes.push("Add a Keep (or Kopia) widget to see which data is backed up.");
   if (!notes.length) return null;
   return (
     <ul class="topo-notes">
@@ -187,7 +188,7 @@ function SourceNotes({ sources }: { sources: Topology["sources"] }) {
 type ViewProps = {
   data: Topology;
   view: ReturnType<typeof layout>;
-  kopia: boolean;
+  backups: boolean;
 };
 
 function MapView(
@@ -299,7 +300,7 @@ function MapView(
         <ColumnHead n={3} title="Storage" count={view.storage.length} />
         {view.storage.map((s) => (
           <button key={s.id} {...nodeProps(s.id)}>
-            <StorageBody s={s} kopia={props.kopia} />
+            <StorageBody s={s} backups={props.backups} />
           </button>
         ))}
       </div>
@@ -401,9 +402,9 @@ function ContainerBody({ c }: { c: TopoContainer }) {
   );
 }
 
-function StorageBody({ s, kopia }: { s: TopoStorage; kopia: boolean }) {
+function StorageBody({ s, backups }: { s: TopoStorage; backups: boolean }) {
   const now = useNow();
-  const p = protection(s, kopia);
+  const p = protection(s, backups);
   return (
     <>
       <span class="topo-icon">
@@ -470,7 +471,7 @@ function StackedView(props: ViewProps & { onSelect: (id: string) => void }) {
               ))}
               {storageFor(c.id).map(({ link, s }) => (
                 <div class="topo-card-row" key={s.id + link.label}>
-                  <StorageBody s={s} kopia={props.kopia} />
+                  <StorageBody s={s} backups={props.backups} />
                 </div>
               ))}
             </div>
@@ -585,12 +586,12 @@ function Inspector(props: {
         .join(", "),
     ]);
     rows.push([
-      "Kopia",
+      "Backup",
       storage.backup
-        ? `${storage.backup.partial ? "part of it, " : ""}snapshot ${storage.backup.source} · ${storage.backup.state}${
+        ? `${storage.backup.partial ? "part of it, " : ""}source ${storage.backup.source} · ${storage.backup.state}${
             storage.backup.last ? ` · ${timeAgo(new Date(storage.backup.last), now)}` : ""
           }`
-        : "not in any snapshot",
+        : "not in any backup",
     ]);
     if (storage.sync)
       rows.push([

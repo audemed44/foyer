@@ -219,7 +219,7 @@ export type Topology = {
   storage: TopoStorage[];
   links: TopoLink[];
   issues: { tone: "bad" | "warn"; text: string; node?: string }[];
-  sources: { docker?: string; npm?: string; kopia?: string; syncthing?: string };
+  sources: { docker?: string; npm?: string; backup?: string; syncthing?: string };
 };
 
 /** An app's answer to a widget action (e.g. Hoist's Deploy), as Foyer relays it. */

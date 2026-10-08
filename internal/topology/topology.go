@@ -1,7 +1,7 @@
 // Package topology maps how the homelab fits together: which domain (an
 // Nginx Proxy Manager host) reaches which container, and where each
-// container keeps its data — and whether Kopia backs that data up or
-// Syncthing syncs it.
+// container keeps its data — and whether a backup (Keep or Kopia) covers
+// that data or Syncthing syncs it.
 package topology
 
 import (
@@ -58,9 +58,10 @@ type Container struct {
 }
 
 type Backup struct {
-	State string     `json:"state"` // a Kopia source state: ok, stale, errors, …
+	State string     `json:"state"` // a backup source state: ok, stale, errors, …
 	Last  *time.Time `json:"last,omitempty"`
-	// Source is the snapshot path as Kopia sees it.
+	// Source names the backup source: Keep's source name, or the snapshot
+	// path as Kopia sees it.
 	Source string `json:"source"`
 	// Partial means only part of this folder is in the snapshot.
 	Partial bool `json:"partial,omitempty"`
@@ -82,7 +83,8 @@ type Storage struct {
 	Name   string  `json:"name,omitempty"`
 	Backup *Backup `json:"backup,omitempty"`
 	Sync   *Sync   `json:"sync,omitempty"`
-	// Written is set when a running app (other than Kopia) writes here.
+	// Written is set when a running app (other than the backup tool)
+	// writes here.
 	Written bool `json:"written,omitempty"`
 }
 
@@ -121,7 +123,7 @@ type Graph struct {
 type Sources struct {
 	Docker    *string `json:"docker,omitempty"`
 	NPM       *string `json:"npm,omitempty"`
-	Kopia     *string `json:"kopia,omitempty"`
+	Backup    *string `json:"backup,omitempty"`
 	Syncthing *string `json:"syncthing,omitempty"`
 }
 
@@ -131,10 +133,11 @@ type Input struct {
 	Containers []docker.Container
 	Details    map[string]docker.Details // by container id
 	NPM        *widgets.NPMData
-	Kopia      *widgets.KopiaData
-	// KopiaContainer and SyncthingContainer are the containers the tools
-	// run in, to translate their paths into host paths.
-	KopiaContainer     string
+	Backup     *widgets.BackupData
+	// BackupContainer and SyncthingContainer are the containers the tools
+	// run in: to translate their paths into host paths (Kopia, Syncthing),
+	// and because their own mounts aren't app data.
+	BackupContainer    string
 	Syncthing          *widgets.SyncthingData
 	SyncthingContainer string
 	Sources            Sources
@@ -323,20 +326,30 @@ func Build(in Input) Graph {
 		g.Host = &Host{ID: "host", Ports: hostPorts}
 	}
 
-	// Where Kopia and Syncthing see their paths, on the host.
+	// Where the backup sources and Syncthing's folders are, on the host.
 	type backed struct {
 		host string
-		src  widgets.KopiaSource
+		src  widgets.BackupSource
 	}
 	var backups []backed
-	if in.Kopia != nil {
-		mounts := in.Details[byName[in.KopiaContainer].ID].Mounts
-		for _, s := range in.Kopia.Sources {
-			if p, ok := hostPath(s.Path, mounts); ok {
-				backups = append(backups, backed{p, s})
-			} else if in.KopiaContainer == "" {
-				// Kopia on the host itself: its paths are host paths.
-				backups = append(backups, backed{s.Path, s})
+	volumes := map[string]widgets.BackupSource{} // Docker volumes a dump covers
+	if in.Backup != nil {
+		mounts := in.Details[byName[in.BackupContainer].ID].Mounts
+		for _, s := range in.Backup.Sources {
+			if s.Volume != "" {
+				volumes[s.Volume] = s
+			}
+			switch {
+			case s.Path == "":
+			case !in.Backup.ContainerPaths:
+				backups = append(backups, backed{s.Path, s}) // Keep: host paths already
+			default:
+				if p, ok := hostPath(s.Path, mounts); ok {
+					backups = append(backups, backed{p, s})
+				} else if in.BackupContainer == "" {
+					// Kopia on the host itself: its paths are host paths.
+					backups = append(backups, backed{s.Path, s})
+				}
 			}
 		}
 	}
@@ -358,7 +371,7 @@ func Build(in Input) Graph {
 
 	// Containers → storage.
 	seen := map[string]bool{}
-	written := map[string]bool{} // storage a running app (other than Kopia) writes to
+	written := map[string]bool{} // storage a running app (other than the backup tool) writes to
 	for _, c := range in.Containers {
 		for _, m := range in.Details[c.ID].Mounts {
 			if m.Type != "bind" && m.Type != "volume" {
@@ -366,7 +379,7 @@ func Build(in Input) Graph {
 			}
 			id := storageID(m)
 			g.Links = append(g.Links, Link{From: "c:" + c.Name, To: id, Label: m.Destination, ReadOnly: !m.RW})
-			if m.RW && c.State == "running" && c.Name != in.KopiaContainer {
+			if m.RW && c.State == "running" && c.Name != in.BackupContainer {
 				written[id] = true
 			}
 			if seen[id] {
@@ -377,10 +390,13 @@ func Build(in Input) Graph {
 			for _, b := range backups {
 				switch {
 				case within(st.Path, b.host):
-					st.Backup = better(st.Backup, &Backup{State: b.src.State, Last: b.src.Last, Source: b.src.Path})
+					st.Backup = better(st.Backup, &Backup{State: b.src.State, Last: b.src.Last, Source: b.src.Label, Partial: b.src.Partial})
 				case within(b.host, st.Path):
-					st.Backup = better(st.Backup, &Backup{State: b.src.State, Last: b.src.Last, Source: b.src.Path, Partial: true})
+					st.Backup = better(st.Backup, &Backup{State: b.src.State, Last: b.src.Last, Source: b.src.Label, Partial: true})
 				}
+			}
+			if v, ok := volumes[st.Name]; ok && st.Kind == "volume" {
+				st.Backup = better(st.Backup, &Backup{State: v.State, Last: v.Last, Source: v.Label})
 			}
 			// Either the storage is inside a synced folder, or synced
 			// folders are inside it (then it's partly synced).
@@ -407,7 +423,7 @@ func Build(in Input) Graph {
 	for i := range g.Storage {
 		g.Storage[i].Written = written[g.Storage[i].ID]
 	}
-	if in.Kopia != nil {
+	if in.Backup != nil {
 		n := 0
 		for _, st := range g.Storage {
 			if st.Class == "data" && written[st.ID] && (st.Backup == nil || st.Backup.Partial) {
@@ -420,7 +436,7 @@ func Build(in Input) Graph {
 				noun = "folder"
 			}
 			g.Issues = append(g.Issues, Issue{Tone: "warn",
-				Text: fmt.Sprintf("%d data %s written by running containers aren't fully in any Kopia snapshot", n, noun)})
+				Text: fmt.Sprintf("%d data %s written by running containers aren't fully in any backup", n, noun)})
 		}
 	}
 	for _, st := range g.Storage {

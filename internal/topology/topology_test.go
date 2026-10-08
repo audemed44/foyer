@@ -76,6 +76,11 @@ func TestHostPath(t *testing.T) {
 	}
 }
 
+func kopiaBackup(d widgets.KopiaData) *widgets.BackupData {
+	b, _ := widgets.AsBackup(d)
+	return &b
+}
+
 func build() Graph {
 	last := time.Now().Add(-2 * time.Hour)
 	cfg := config.Default()
@@ -90,8 +95,8 @@ func build() Graph {
 			{Domains: []string{"old.example.com"}, Scheme: "http", ForwardHost: "paperless", ForwardPort: 8000, Enabled: true},
 			{Domains: []string{"cockpit.example.com"}, Scheme: "https", ForwardHost: "172.17.0.1", ForwardPort: 9090, Enabled: true},
 		}, Certificates: []widgets.Certificate{{Name: "Wildcard", Days: 5, Expires: time.Now().Add(5 * 24 * time.Hour)}}},
-		Kopia:              &widgets.KopiaData{Sources: []widgets.KopiaSource{{Path: "/data", State: "ok", Last: &last}}},
-		KopiaContainer:     "kopia",
+		Backup:             kopiaBackup(widgets.KopiaData{Sources: []widgets.KopiaSource{{Path: "/data", State: "ok", Last: &last}}}),
+		BackupContainer:    "kopia",
 		Syncthing:          &widgets.SyncthingData{Folders: []widgets.SyncFolder{{Label: "Phone", Path: "/var/syncthing/phone", State: "idle"}}},
 		SyncthingContainer: "syncthing",
 	})
@@ -194,5 +199,55 @@ func TestSleepingAppsAreNotIssues(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("an awake app on a stopped container should still be an issue: %+v", g.Issues)
+	}
+}
+
+// Keep reports host paths and the volumes its dumps cover; its own
+// read-write mount of the stack doesn't make the stack "written".
+func TestKeepBackups(t *testing.T) {
+	last := time.Now().Add(-time.Hour)
+	list := append([]docker.Container{{ID: "6", Name: "keep", State: "running", Labels: map[string]string{}}}, containers...)
+	det := map[string]docker.Details{"6": {Mounts: []docker.Mount{
+		{Type: "bind", Source: "/home/u/stack", Destination: "/data", RW: true},
+	}}}
+	for k, v := range details {
+		det[k] = v
+	}
+	keep := widgets.KeepData{Backup: widgets.BackupData{Engine: "keep", Sources: []widgets.BackupSource{
+		{Key: "keep:shelfloom", Label: "shelfloom", Path: "/home/u/stack/shelfloom", State: "ok", Last: &last},
+		{Key: "keep:paperless-db", Label: "paperless-db", Volume: "pgdata", State: "stale", Last: &last},
+		{Key: "keep:romm", Label: "romm", Path: "/home/u/sync", State: "ok", Last: &last, Partial: true},
+	}}}
+	b, ok := widgets.AsBackup(keep)
+	if !ok {
+		t.Fatal("KeepData isn't backup data")
+	}
+	g := Build(Input{Containers: list, Details: det, Backup: &b, BackupContainer: "keep"})
+	byID := map[string]Storage{}
+	for _, s := range g.Storage {
+		byID[s.ID] = s
+	}
+	if s := byID["p:/home/u/stack/shelfloom/data"]; s.Backup == nil || s.Backup.Partial || s.Backup.Source != "shelfloom" {
+		t.Fatalf("shelfloom: %+v", s.Backup)
+	}
+	if s := byID["v:pgdata"]; s.Backup == nil || s.Backup.State != "stale" || s.Backup.Source != "paperless-db" {
+		t.Fatalf("the dumped volume should be covered: %+v", s.Backup)
+	}
+	if s := byID["p:/home/u/sync"]; s.Backup == nil || !s.Backup.Partial {
+		t.Fatalf("a source with excludes is partial: %+v", s.Backup)
+	}
+	if s := byID["p:/home/u/stack"]; s.Written {
+		t.Fatal("Keep's own mount counted as written by an app")
+	}
+	var texts []string
+	for _, i := range g.Issues {
+		texts = append(texts, i.Text)
+	}
+	all := strings.Join(texts, "\n")
+	if !strings.Contains(all, "The backup of /var/lib/docker/volumes/pgdata/_data is stale") {
+		t.Fatalf("issues:\n%s", all)
+	}
+	if strings.Contains(all, "Kopia") {
+		t.Fatalf("Kopia named in Keep's issues:\n%s", all)
 	}
 }
