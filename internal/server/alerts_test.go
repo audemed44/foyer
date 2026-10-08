@@ -33,6 +33,14 @@ func TestIntegrationProblems(t *testing.T) {
 	if len(backups) != 2 || backups[0].Title != "The backup of /data is overdue" || backups[1].Key != "backup:h:/new" {
 		t.Fatalf("backups: %+v", backups)
 	}
+	keep := backupProblems(widgets.KeepData{Backup: widgets.BackupData{Engine: "keep", Sources: []widgets.BackupSource{
+		{Key: "keep:ledger", Label: "ledger", State: "errors"},
+		{Key: "keep:lookout", Label: "lookout", State: "never"},
+	}}})
+	if len(keep) != 2 || keep[0].Key != "backup:keep:ledger" || keep[0].Title != "The backup of ledger had problems" ||
+		keep[1].Body != "Keep has no good backup of it." {
+		t.Fatalf("keep: %+v", keep)
+	}
 
 	syncs := syncProblems(widgets.SyncthingData{Folders: []widgets.SyncFolder{
 		{ID: "a", Label: "Photos", State: "error", Error: "folder marker missing"},
