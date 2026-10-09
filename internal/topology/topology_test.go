@@ -217,7 +217,16 @@ func TestKeepBackups(t *testing.T) {
 		{Key: "keep:shelfloom", Label: "shelfloom", Path: "/home/u/stack/shelfloom", State: "ok", Last: &last},
 		{Key: "keep:paperless-db", Label: "paperless-db", Volume: "pgdata", State: "stale", Last: &last},
 		{Key: "keep:romm", Label: "romm", Path: "/home/u/sync", State: "ok", Last: &last, Partial: true},
+		{Key: "keep:media", Label: "media", Path: "/home/u/media", State: "ok", Last: &last, Partial: true,
+			Excluded: []string{"/home/u/media/roms", "/home/u/media/cache-*"}},
 	}}}
+	list = append(list, docker.Container{ID: "7", Name: "jellyfin", State: "running", Labels: map[string]string{}})
+	det["7"] = docker.Details{Mounts: []docker.Mount{
+		{Type: "bind", Source: "/home/u/media/films", Destination: "/films", RW: true},
+		{Type: "bind", Source: "/home/u/media/roms", Destination: "/roms", RW: true},
+		{Type: "bind", Source: "/home/u/media/cache-1/x", Destination: "/cache", RW: true},
+		{Type: "bind", Source: "/home/u/media", Destination: "/all", RW: true},
+	}}
 	b, ok := widgets.AsBackup(keep)
 	if !ok {
 		t.Fatal("KeepData isn't backup data")
@@ -235,6 +244,20 @@ func TestKeepBackups(t *testing.T) {
 	}
 	if s := byID["p:/home/u/sync"]; s.Backup == nil || !s.Backup.Partial {
 		t.Fatalf("a source with excludes is partial: %+v", s.Backup)
+	}
+	// Left-out folders: only they lack a backup, and the folder holding
+	// them is partial; the rest is fully covered.
+	if s := byID["p:/home/u/media/films"]; s.Backup == nil || s.Backup.Partial {
+		t.Fatalf("films: %+v", s.Backup)
+	}
+	if s := byID["p:/home/u/media/roms"]; s.Backup != nil {
+		t.Fatalf("roms is left out: %+v", s.Backup)
+	}
+	if s := byID["p:/home/u/media/cache-1/x"]; s.Backup != nil {
+		t.Fatalf("cache-* is left out: %+v", s.Backup)
+	}
+	if s := byID["p:/home/u/media"]; s.Backup == nil || !s.Backup.Partial {
+		t.Fatalf("media holds left-out folders: %+v", s.Backup)
 	}
 	if s := byID["p:/home/u/stack"]; s.Written {
 		t.Fatal("Keep's own mount counted as written by an app")

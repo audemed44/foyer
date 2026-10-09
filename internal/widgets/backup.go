@@ -19,6 +19,9 @@ type BackupSource struct {
 	Last    *time.Time `json:"last,omitempty"`
 	Errors  int64      `json:"errors,omitempty"`
 	Partial bool       `json:"partial,omitempty"`
+	// Excluded are host-path patterns (globs) of folders left out of the
+	// source (Keep). With them, only those folders count as not backed up.
+	Excluded []string `json:"excluded,omitempty"`
 }
 
 // BackupData is what Foyer knows about backups, whichever tool runs them.

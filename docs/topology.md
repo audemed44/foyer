@@ -39,8 +39,9 @@ can be shown or hidden.
   container that **publishes that port**; if none does, it's shown as
   running on **this host** (Cockpit, code-server and the like).
 - **Keep** reports each source as a host path, or as the Docker volume a
-  database dump covers, so dumped volumes count as backed up too. A source
-  with its own excludes counts as partly backed up. Keep's own read-write
+  database dump covers, so dumped volumes count as backed up too. Keep
+  also lists each source's left-out folders: only those count as not
+  backed up, and a folder holding one as partly backed up. Keep's own read-write
   mount of the stack doesn't count as an app writing there.
 - **Kopia** (when there's no Keep widget) reports its snapshot paths as the
   Kopia container sees them

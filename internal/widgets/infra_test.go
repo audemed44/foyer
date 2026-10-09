@@ -275,7 +275,7 @@ func TestKeepReadsCardAndBackups(t *testing.T) {
 			fmt.Fprint(w, `{"engine":"kopia","stale_hours":25,"sources":[
 				{"name":"ledger","path":"/home/u/stack/ledger","strategy":"sqlite","state":"ok","last":"2026-10-08T20:00:00Z","size":10},
 				{"name":"pg","volume":"pgdata","strategy":"postgres","state":"never","size":0},
-				{"name":"romm","path":"/home/u/stack/romm","strategy":"sqlite","state":"ok","partial":true}]}`)
+				{"name":"romm","path":"/home/u/stack/romm","strategy":"sqlite","state":"ok","partial":true,"excluded":["/home/u/stack/romm/library"]}]}`)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -296,7 +296,7 @@ func TestKeepReadsCardAndBackups(t *testing.T) {
 	if s := b.Sources[0]; s.Key != "keep:ledger" || s.Path != "/home/u/stack/ledger" || s.Last == nil || s.State != "ok" {
 		t.Fatalf("ledger: %+v", s)
 	}
-	if b.Sources[1].Volume != "pgdata" || !b.Sources[2].Partial {
+	if b.Sources[1].Volume != "pgdata" || !b.Sources[2].Partial || b.Sources[2].Excluded[0] != "/home/u/stack/romm/library" {
 		t.Fatalf("sources: %+v", b.Sources)
 	}
 	if _, err := keep(context.Background(), config.Widget{"type": "keep", "url": srv.URL, "key": "wrong"}); err == nil {
