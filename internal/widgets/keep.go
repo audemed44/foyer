@@ -32,12 +32,13 @@ func keep(ctx context.Context, w config.Widget) (any, error) {
 	var raw struct {
 		Engine  string `json:"engine"`
 		Sources []struct {
-			Name    string     `json:"name"`
-			Path    string     `json:"path"`
-			Volume  string     `json:"volume"`
-			State   string     `json:"state"`
-			Last    *time.Time `json:"last"`
-			Partial bool       `json:"partial"`
+			Name     string     `json:"name"`
+			Path     string     `json:"path"`
+			Volume   string     `json:"volume"`
+			State    string     `json:"state"`
+			Last     *time.Time `json:"last"`
+			Partial  bool       `json:"partial"`
+			Excluded []string   `json:"excluded"`
 		} `json:"sources"`
 	}
 	if err := getJSON(ctx, join(base, "/api/foyer/backups"), &raw, auth...); err != nil {
@@ -47,7 +48,7 @@ func keep(ctx context.Context, w config.Widget) (any, error) {
 	for _, s := range raw.Sources {
 		out.Backup.Sources = append(out.Backup.Sources, BackupSource{
 			Key: "keep:" + s.Name, Label: s.Name, Path: s.Path, Volume: s.Volume,
-			State: s.State, Last: s.Last, Partial: s.Partial,
+			State: s.State, Last: s.Last, Partial: s.Partial, Excluded: s.Excluded,
 		})
 	}
 	return out, nil

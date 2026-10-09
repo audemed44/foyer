@@ -390,7 +390,16 @@ func Build(in Input) Graph {
 			for _, b := range backups {
 				switch {
 				case within(st.Path, b.host):
-					st.Backup = better(st.Backup, &Backup{State: b.src.State, Last: b.src.Last, Source: b.src.Label, Partial: b.src.Partial})
+					if leftOut(st.Path, b.src.Excluded) {
+						continue
+					}
+					// With the left-out folders known, only folders holding
+					// one are partial; without, the source's flag says.
+					partial := b.src.Partial
+					if len(b.src.Excluded) > 0 {
+						partial = holdsLeftOut(st.Path, b.src.Excluded)
+					}
+					st.Backup = better(st.Backup, &Backup{State: b.src.State, Last: b.src.Last, Source: b.src.Label, Partial: partial})
 				case within(b.host, st.Path):
 					st.Backup = better(st.Backup, &Backup{State: b.src.State, Last: b.src.Last, Source: b.src.Label, Partial: true})
 				}
@@ -447,6 +456,37 @@ func Build(in Input) Graph {
 	}
 	sort.SliceStable(g.Issues, func(i, j int) bool { return g.Issues[i].Tone == "bad" && g.Issues[j].Tone != "bad" })
 	return g
+}
+
+// leftOut reports whether p, or a folder it's in, matches an excluded
+// pattern.
+func leftOut(p string, patterns []string) bool {
+	for _, pat := range patterns {
+		for q := path.Clean(p); ; q = path.Dir(q) {
+			if ok, _ := path.Match(pat, q); ok {
+				return true
+			}
+			if q == "/" || q == "." {
+				break
+			}
+		}
+	}
+	return false
+}
+
+// holdsLeftOut reports whether an excluded pattern names something inside p.
+func holdsLeftOut(p string, patterns []string) bool {
+	segs := strings.Split(strings.Trim(path.Clean(p), "/"), "/")
+	for _, pat := range patterns {
+		ps := strings.Split(strings.Trim(path.Clean(pat), "/"), "/")
+		if len(ps) <= len(segs) {
+			continue
+		}
+		if ok, _ := path.Match(strings.Join(ps[:len(segs)], "/"), strings.Join(segs, "/")); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // better keeps the more complete (then the more recent) backup match.
