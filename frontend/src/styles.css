@@ -2374,6 +2374,10 @@ input[type="range"] {
 .app-list .app-thumb-fallback {
   font-size: 0;
 }
+/* A row with no picture (Hoist, Keep, Gatehouse): no empty square. */
+.app-list .app-item-bare {
+  grid-template-columns: minmax(0, 1fr) 110px;
+}
 .app-list a.app-item:hover .app-item-title {
   color: var(--accent-hi);
 }
@@ -2392,6 +2396,9 @@ input[type="range"] {
 }
 .app-list .app-item-row > .app-item {
   grid-template-columns: 36px minmax(0, 1fr) auto;
+}
+.app-list .app-item-row > .app-item-bare {
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 .app-action {
   flex: none;
