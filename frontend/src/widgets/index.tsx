@@ -244,6 +244,7 @@ function AppWidget({
     src ? (src.startsWith("/") ? api.widgetImage(service.id, src) : src) : undefined;
   const empty = !data.stats.length && !data.progress.length && !data.items.length;
   if (empty) return <div class="widget widget-empty">Nothing to show yet</div>;
+  const covers = data.items_layout === "covers";
 
   return (
     <div class="widget app-widget">
@@ -282,15 +283,21 @@ function AppWidget({
       {data.items.length > 0 && (
         <div class="app-items">
           {data.items_title && <p class="eyebrow eyebrow-accent">{data.items_title}</p>}
-          <ul class={data.items_layout === "covers" ? "app-covers" : "app-list"}>
+          <ul class={covers ? "app-covers" : "app-list"}>
             {data.items.map((it) => {
               const href = itemHref(it.url, service);
               const src = image(it.image);
+              // Covers keep a placeholder so the grid holds; a list row
+              // without a picture just starts at its title.
+              const thumb = covers || src;
+              const cls = thumb ? "app-item" : "app-item app-item-bare";
               const body = (
                 <>
-                  <span class="app-thumb">
-                    <Thumb src={src} title={it.title} />
-                  </span>
+                  {thumb && (
+                    <span class="app-thumb">
+                      <Thumb src={src} title={it.title} />
+                    </span>
+                  )}
                   <span class="app-item-text">
                     <span class="app-item-title">{it.title}</span>
                     {it.subtitle && <span class="app-item-sub">{it.subtitle}</span>}
@@ -309,11 +316,11 @@ function AppWidget({
                 </>
               );
               const item = href ? (
-                <a href={href} target="_blank" rel="noopener noreferrer" class="app-item">
+                <a href={href} target="_blank" rel="noopener noreferrer" class={cls}>
                   {body}
                 </a>
               ) : (
-                <div class="app-item">{body}</div>
+                <div class={cls}>{body}</div>
               );
               // Keyed by what the item is, so an action keeps being followed
               // when the refreshed card moves the item or drops its button
