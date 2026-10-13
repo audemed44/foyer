@@ -2,7 +2,7 @@ import type { ComponentChildren } from "preact";
 
 /** A big number with a unit and a tracked label: the widgets' headline stat. */
 export function Figure(props: {
-  value: string;
+  value: ComponentChildren;
   label: string;
   unit?: string;
   tone?: string;

@@ -2355,6 +2355,23 @@ input[type="range"] {
   color: var(--fg-3);
   font-variant-numeric: tabular-nums;
 }
+/* Values an app marked private: blurred until the card is hovered or a
+   tap shows them. */
+.secret {
+  filter: blur(0.32em);
+  transition: filter 0.2s var(--ease);
+  cursor: pointer;
+}
+.secret.shown {
+  filter: none;
+  cursor: inherit;
+}
+@media (hover: hover) {
+  .app-widget:hover .secret {
+    filter: none;
+    cursor: inherit;
+  }
+}
 
 /* List: compact rows with a small thumbnail. */
 .app-list .app-item {

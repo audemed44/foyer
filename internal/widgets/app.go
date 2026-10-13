@@ -21,10 +21,10 @@ import (
 //
 //	{
 //	  "version": 1,
-//	  "stats":    [{"label", "value", "unit"?, "caption"?, "tone"?}],
+//	  "stats":    [{"label", "value", "unit"?, "caption"?, "tone"?, "private"?}],
 //	  "progress": [{"label", "value", "max", "caption"?}],
 //	  "items_title": "…", "items_layout": "covers" | "list",
-//	  "items":    [{"title", "subtitle"?, "image"?, "url"?, "progress"?, "caption"?,
+//	  "items":    [{"title", "subtitle"?, "image"?, "url"?, "progress"?, "caption"?, "private"?,
 //	                "action"?: {"label", "url", "confirm"?}}],
 //	  "accepts":  {"url", "types", "label"?, "field"?}
 //	}
@@ -41,7 +41,8 @@ type AppStat struct {
 	Value   string `json:"value"`
 	Unit    string `json:"unit,omitempty"`
 	Caption string `json:"caption,omitempty"`
-	Tone    string `json:"tone,omitempty"` // good | warn | bad | accent
+	Tone    string `json:"tone,omitempty"`    // good | warn | bad | accent
+	Private bool   `json:"private,omitempty"` // value blurred until revealed
 }
 
 type AppProgress struct {
@@ -58,6 +59,7 @@ type AppItem struct {
 	URL      string     `json:"url,omitempty"`
 	Progress *float64   `json:"progress,omitempty"` // 0-100
 	Caption  string     `json:"caption,omitempty"`
+	Private  bool       `json:"private,omitempty"` // caption blurred until revealed
 	Action   *AppAction `json:"action,omitempty"`
 }
 

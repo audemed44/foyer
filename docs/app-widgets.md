@@ -62,6 +62,12 @@ Every section is optional:
   are used directly.
 - `url` paths starting with `/` resolve against the service's link, so they
   open the app's public page.
+- `"private": true` on a stat blurs its value, and on an item its
+  `caption`, for figures you'd rather not show to whoever is looking at
+  your screen (Ledger's spending and card dues). Hovering the card shows
+  them; on a touch screen, tapping a blurred value shows all of the card's
+  values for 15 seconds, and that tap doesn't follow the item's link. It
+  hides them from view only: the values are still in the page.
 - Text is clipped to sensible lengths, so a misbehaving app can't break the
   card.
 
