@@ -17,6 +17,7 @@ import (
 
 	"github.com/audemed44/foyer/internal/config"
 	"github.com/audemed44/foyer/internal/docker"
+	"github.com/audemed44/foyer/internal/logging"
 	"github.com/audemed44/foyer/internal/monitor"
 	"github.com/audemed44/foyer/internal/server"
 	"github.com/audemed44/foyer/web"
@@ -37,11 +38,11 @@ func main() {
 		os.Exit(importCmd(os.Args[2]))
 	}
 
-	level := slog.LevelInfo
-	if os.Getenv("FOYER_DEBUG") != "" {
-		level = slog.LevelDebug
+	// FOYER_DEBUG still works: it's LOG_LEVEL=debug.
+	if os.Getenv("FOYER_DEBUG") != "" && os.Getenv("LOG_LEVEL") == "" {
+		os.Setenv("LOG_LEVEL", "debug")
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
+	logging.Setup("foyer", os.Stderr)
 
 	configDir := env("FOYER_CONFIG_DIR", "/config")
 	store := config.NewStore(filepath.Join(configDir, "foyer.yaml"))
@@ -76,6 +77,7 @@ func main() {
 		Addr:              ":" + env("FOYER_PORT", "8080"),
 		Handler:           app.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
+		ErrorLog:          logging.ServerErrorLog(),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

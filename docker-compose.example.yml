@@ -3,6 +3,12 @@ services:
     image: ghcr.io/audemed44/foyer:latest
     container_name: foyer
     restart: unless-stopped
+    # Cap Docker's copy of the logs: 3 files of 10 MB, oldest dropped.
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
     # Match the owner of ./foyer. group_add is the host's docker group id
     # (`stat -c %g /var/run/docker.sock`), needed to read container state.
     user: "1000:1000"

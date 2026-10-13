@@ -61,6 +61,8 @@ in the share sheet: see [Drop](drop.md).
 | `FOYER_DOCKER_SOCKET` | `/var/run/docker.sock` | |
 | `FOYER_DROP_MAX_MB` | `512` | Largest file Drop accepts |
 | `TZ` | UTC | Used for calendar events. The clock uses the browser's time zone. |
+| `LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
+| `LOG_FORMAT` | `json` | `text` for reading in a terminal |
 
 Any other variable can be used in `foyer.yaml` as `${NAME}`, which is handy
 for widget secrets.
@@ -82,3 +84,15 @@ docker run --rm -v ./homepage:/homepage:ro ghcr.io/audemed44/foyer import /homep
 The Uptime Kuma, Speedtest and calendar (iCal) widgets carry over; other
 Homepage widgets are skipped. Homepage's Docker labels keep working for
 [discovery](dashboard.md#discovery).
+
+## Logs
+
+Foyer writes one JSON object per line on stderr, for
+[Logbook](https://github.com/audemed44/logbook) to collect: every request
+(failures as errors, changes at info, plain reads at debug), background
+jobs with how long they took, and an audit line when the config is saved
+or a widget action runs. Nothing it stores goes into the logs. A message
+repeated more than 20 times a minute is held back and counted, at most 600
+lines a minute get out, and long values are cut at 4 KB, so a failing
+Foyer can't flood the disk. Docker's own copy is capped in compose
+(`logging:`, 3 × 10 MB).
