@@ -18,6 +18,8 @@ export function ContainersPage({ onLogs }: { onLogs: (name: string) => void }) {
 
   const all = data ?? [];
   const running = all.filter((c) => c.state === "running");
+  // Containers Gatehouse stopped on purpose aren't counted against the total.
+  const asleep = all.filter((c) => c.state === "asleep").length;
   const memTotal = running.reduce((n, c) => n + (c.stats?.mem_used ?? 0), 0);
   const cpuTotal = running.reduce((n, c) => n + (c.stats?.cpu ?? 0), 0);
   const unhealthy = all.filter((c) => c.health === "unhealthy").length;
@@ -62,7 +64,11 @@ export function ContainersPage({ onLogs }: { onLogs: (name: string) => void }) {
     <section class="ct-page">
       <PageTitle />
       <div class="figures page-figures stagger">
-        <Figure value={String(running.length)} unit={`/${all.length}`} label="Running" />
+        <Figure
+          value={String(running.length)}
+          unit={`/${all.length - asleep}`}
+          label={asleep ? `Running · ${asleep} asleep` : "Running"}
+        />
         <Figure value={cpuTotal.toFixed(0)} unit="%" label="CPU · all containers" />
         <Figure
           value={formatBytes(memTotal).split(" ")[0]}
@@ -103,9 +109,7 @@ export function ContainersPage({ onLogs }: { onLogs: (name: string) => void }) {
               <h2 class="group-name">{project}</h2>
             </div>
             <span class="spacer" />
-            <span class="eyebrow">
-              {list.filter((c) => c.state === "running").length} of {list.length} running
-            </span>
+            <span class="eyebrow">{runningText(list)}</span>
           </div>
           <div class="ct-list stagger">
             {list.map((c) => (
@@ -128,7 +132,15 @@ function PageTitle() {
   );
 }
 
+/** "3 of 4 running · 1 asleep": asleep containers sit outside the count. */
+function runningText(list: DockerContainer[]): string {
+  const running = list.filter((c) => c.state === "running").length;
+  const asleep = list.filter((c) => c.state === "asleep").length;
+  return `${running} of ${list.length - asleep} running${asleep ? ` · ${asleep} asleep` : ""}`;
+}
+
 function tone(c: DockerContainer): string {
+  if (c.state === "asleep") return "accent";
   if (c.state === "restarting") return "warn";
   if (c.state !== "running")
     return c.state === "exited" && c.status.startsWith("Exited (0)") ? "" : "bad";

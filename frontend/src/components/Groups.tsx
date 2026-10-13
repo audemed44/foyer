@@ -102,6 +102,7 @@ function GroupSection(props: {
   const tileCols = columns === 1 ? 2 : span;
   const counts = countStatus(group.services.map((s) => status[s.id]));
   const down = counts.total - counts.up;
+  const asleep = counts.asleep ? ` · ${counts.asleep} asleep` : "";
 
   const toggle = () => {
     const next = !collapsed;
@@ -175,7 +176,7 @@ function GroupSection(props: {
                 ? `${down} down`
                 : narrow
                   ? `${counts.total}/${counts.total}`
-                  : `${counts.total} of ${counts.total} up`}
+                  : `${counts.total} of ${counts.total} up${asleep}`}
           </span>
         )}
       </div>

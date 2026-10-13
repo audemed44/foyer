@@ -38,8 +38,13 @@ func (s *Server) listContainers(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	stats := s.docker.Stats(r.Context(), running)
+	asleep := s.asleepContainers(r.Context(), s.store.Config())
 	out := make([]containerInfo, len(list))
 	for i, c := range list {
+		// Stopped by Gatehouse on purpose: asleep, not exited.
+		if state, ok := asleep[c.Name]; ok && c.State != "running" {
+			c.State, c.Status = "asleep", "Asleep ("+state+" by Gatehouse)"
+		}
 		out[i] = containerInfo{Container: c}
 		if st, ok := stats[c.ID]; ok {
 			out[i].Stats = &st

@@ -192,7 +192,11 @@ export function statusInfo(st?: ServiceStatus): { tone: string; label: string } 
   return null;
 }
 
-/** Counts services that have a known state (a container or a status check). */
+/**
+ * Counts services that have a known state (a container or a status check).
+ * Asleep ones (stopped by Gatehouse on purpose) are counted on their own,
+ * not as up or in the total.
+ */
 export function countStatus(statuses: (ServiceStatus | undefined)[]): {
   up: number;
   total: number;
@@ -204,9 +208,12 @@ export function countStatus(statuses: (ServiceStatus | undefined)[]): {
   for (const st of statuses) {
     const info = statusInfo(st);
     if (!info) continue;
+    if (info.label === "asleep") {
+      asleep++;
+      continue;
+    }
     total++;
     if (info.tone !== "bad") up++;
-    if (info.label === "asleep") asleep++;
   }
   return { up, total, asleep };
 }
