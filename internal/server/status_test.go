@@ -96,6 +96,15 @@ func TestStatusFromLookoutAndGatehouse(t *testing.T) {
 	if c := got["broken"].Container; c == nil || c.State != "exited" {
 		t.Fatalf("broken should still be exited: %+v", got["broken"])
 	}
+	var list []containerInfo
+	json.Unmarshal(do(s.Handler(), "GET", "/api/containers", "").Body.Bytes(), &list)
+	states := map[string]string{}
+	for _, c := range list {
+		states[c.Name] = c.State
+	}
+	if states["convertx"] != "asleep" || states["broken"] != "exited" {
+		t.Fatalf("container list states: %v", states)
+	}
 	if st := got["watched"]; st.Check == nil || st.Check.State != "down" || st.Ping != nil {
 		t.Fatalf("watched: %+v", st)
 	}
