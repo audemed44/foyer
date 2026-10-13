@@ -202,7 +202,14 @@ function Thumb({ src, title }: { src?: string; title: string }) {
 }
 
 type AppData = {
-  stats: { label: string; value: string; unit?: string; caption?: string; tone?: string }[];
+  stats: {
+    label: string;
+    value: string;
+    unit?: string;
+    caption?: string;
+    tone?: string;
+    private?: boolean;
+  }[];
   progress: { label: string; value: number; max: number; caption?: string }[];
   items_title?: string;
   items_layout: "covers" | "list";
@@ -213,6 +220,7 @@ type AppData = {
     url?: string;
     progress?: number;
     caption?: string;
+    private?: boolean;
     action?: AppAction;
   }[];
 };
@@ -231,6 +239,53 @@ function itemHref(url: string | undefined, service: Service): string | undefined
   }
 }
 
+/** How long a tap shows a card's private values. */
+const REVEAL_MS = 15_000;
+
+/**
+ * Whether the card's private values are showing: a tap shows them for a
+ * while, and they hide again early when the page is left.
+ */
+function useReveal(): [boolean, () => void] {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (!shown) return;
+    const hide = () => setShown(false);
+    const timer = setTimeout(hide, REVEAL_MS);
+    const onHidden = () => document.hidden && hide();
+    document.addEventListener("visibilitychange", onHidden);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onHidden);
+    };
+  }, [shown]);
+  return [shown, () => setShown(true)];
+}
+
+/**
+ * A value the app marked private, blurred until revealed. A mouse reveals
+ * it by hovering the card (CSS), so its clicks go through; a tap on a
+ * hidden value reveals instead of following the item's link.
+ */
+function Secret(props: { shown: boolean; onReveal: () => void; children: ComponentChildren }) {
+  const mouse = useRef(false);
+  return (
+    <span
+      class={props.shown ? "secret shown" : "secret"}
+      title={props.shown ? undefined : "Tap to show"}
+      onPointerDown={(e) => (mouse.current = e.pointerType === "mouse")}
+      onClick={(e) => {
+        if (props.shown || mouse.current) return;
+        e.preventDefault();
+        e.stopPropagation();
+        props.onReveal();
+      }}
+    >
+      {props.children}
+    </span>
+  );
+}
+
 function AppWidget({
   data,
   service,
@@ -242,9 +297,18 @@ function AppWidget({
 }) {
   const image = (src?: string) =>
     src ? (src.startsWith("/") ? api.widgetImage(service.id, src) : src) : undefined;
+  const [shown, reveal] = useReveal();
   const empty = !data.stats.length && !data.progress.length && !data.items.length;
   if (empty) return <div class="widget widget-empty">Nothing to show yet</div>;
   const covers = data.items_layout === "covers";
+  const secret = (value: ComponentChildren, hidden?: boolean) =>
+    hidden ? (
+      <Secret shown={shown} onReveal={reveal}>
+        {value}
+      </Secret>
+    ) : (
+      value
+    );
 
   return (
     <div class="widget app-widget">
@@ -253,7 +317,7 @@ function AppWidget({
           {data.stats.map((s) => (
             <Figure
               key={s.label}
-              value={s.value}
+              value={secret(s.value, s.private)}
               unit={s.unit}
               label={s.label}
               caption={s.caption}
@@ -307,11 +371,13 @@ function AppWidget({
                       <span class="bar">
                         <span style={{ width: `${it.progress}%` }} />
                       </span>
-                      {it.caption && <span class="app-item-caption">{it.caption}</span>}
+                      {it.caption && (
+                        <span class="app-item-caption">{secret(it.caption, it.private)}</span>
+                      )}
                     </span>
                   )}
                   {it.progress == null && it.caption && (
-                    <span class="app-item-caption">{it.caption}</span>
+                    <span class="app-item-caption">{secret(it.caption, it.private)}</span>
                   )}
                 </>
               );

@@ -21,14 +21,14 @@ func appServer(t *testing.T) *httptest.Server {
 				return
 			}
 			fmt.Fprint(w, `{"version":1,
-				"stats":[{"label":"Read","value":"12","unit":"/52","tone":"good"},{"label":"x","value":"1","tone":"neon"},
+				"stats":[{"label":"Read","value":"12","unit":"/52","tone":"good","private":true},{"label":"x","value":"1","tone":"neon"},
 					{"label":"3","value":"3"},{"label":"4","value":"4"},{"label":"5","value":"5"},{"label":"6","value":"6"},{"label":"7","value":"7"}],
 				"progress":[{"label":"Goal","value":12,"max":52,"caption":"behind"}],
 				"items_title":"Reading","items_layout":"covers",
 				"items":[
 					{"title":"Book","image":"/api/cover/1","url":"/books/1","progress":140},
 					{"title":"Evil","image":"//evil.example/x.png","url":"javascript:alert(1)","progress":-5},
-					{"title":"Remote","image":"https://cdn.example/c.jpg"}
+					{"title":"Remote","image":"https://cdn.example/c.jpg","caption":"₹1","private":true}
 				]}`)
 		case "/api/cover/1":
 			w.Header().Set("Content-Type", "image/jpeg")
@@ -56,7 +56,8 @@ func TestAppWidgetSanitizes(t *testing.T) {
 		t.Fatal(err)
 	}
 	w := got.(AppWidget)
-	if len(w.Stats) != 6 || w.Stats[0].Unit != "/52" || w.Stats[0].Tone != "good" || w.Stats[1].Tone != "" {
+	if len(w.Stats) != 6 || w.Stats[0].Unit != "/52" || w.Stats[0].Tone != "good" || w.Stats[1].Tone != "" ||
+		!w.Stats[0].Private || w.Stats[1].Private {
 		t.Fatalf("stats: %+v", w.Stats)
 	}
 	if w.ItemsLayout != "covers" || len(w.Progress) != 1 || len(w.Items) != 3 {
@@ -69,7 +70,7 @@ func TestAppWidgetSanitizes(t *testing.T) {
 	if *evil.Progress != 0 || evil.Image != "" || evil.URL != "" {
 		t.Fatalf("unsafe item should be cleaned: %+v", evil)
 	}
-	if remote.Image != "https://cdn.example/c.jpg" {
+	if remote.Image != "https://cdn.example/c.jpg" || !remote.Private || book.Private {
 		t.Fatalf("https images are kept: %+v", remote)
 	}
 
