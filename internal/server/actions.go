@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/audemed44/foyer/internal/logging"
 	"github.com/audemed44/foyer/internal/widgets"
 )
 
@@ -82,6 +83,7 @@ func (s *Server) runWidgetAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res, err := widgets.RunAction(r.Context(), svc.Widget, body.URL)
+	logging.Audit(r.Context(), "widget.action", "service", svc.Name, "action", logging.ScrubURLs(body.URL), "ok", err == nil)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, svc.Name+": "+err.Error())
 		return

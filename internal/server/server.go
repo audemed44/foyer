@@ -18,6 +18,7 @@ import (
 	"github.com/audemed44/foyer/internal/config"
 	"github.com/audemed44/foyer/internal/docker"
 	"github.com/audemed44/foyer/internal/drop"
+	"github.com/audemed44/foyer/internal/logging"
 	"github.com/audemed44/foyer/internal/monitor"
 	"github.com/audemed44/foyer/internal/widgets"
 )
@@ -82,7 +83,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /icons/", assetHandler(filepath.Join(s.assetsDir, "icons"), "/icons/"))
 	mux.Handle("GET /images/", assetHandler(filepath.Join(s.assetsDir, "images"), "/images/"))
 	mux.Handle("GET /", s.spa())
-	return securityHeaders(mux)
+	return logging.Requests(securityHeaders(mux))
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -137,6 +138,7 @@ func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.monitor.Refresh()
+	logging.Audit(r.Context(), "config.save")
 	writeJSON(w, http.StatusOK, saved.Masked())
 }
 
